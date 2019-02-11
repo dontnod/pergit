@@ -24,6 +24,8 @@
 import sys
 import argparse
 
+import pergit.vcs
+
 def main(argv=None):
     ''' gitp4 entry point '''
 
@@ -31,15 +33,16 @@ def main(argv=None):
         argv = sys.argv
 
     parser = _get_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     args.command(args)
 
 def _get_parser():
     parser = argparse.ArgumentParser()
+
     subparsers = parser.add_subparsers(metavar='<command>',
                                        description='Sub command')
 
-    _config_commands = [_config_import]
+    _config_commands = [_config_import, _config_sync]
     for config in _config_commands:
         config(subparsers)
 
@@ -47,11 +50,20 @@ def _get_parser():
 
 def _config_import(subparsers):
     description = 'Import a Perforce repository in a git branch'
-    subparsers.add_parser('import', description=description)
+    parser = subparsers.add_parser('import', description=description)
+    parser.add_argument('depot_path',
+                        help='Perforce depot path to import',
+                        metavar='<depot-path>')
+    parser.set_defaults(command=_import)
 
 def _config_sync(subparsers):
     description = 'Synchronize a perforce repository with git'
     subparsers.add_parser('sync', description=description)
+
+def _import(args):
+    p4 = pergit.vcs.P4()
+    work_tree = p4('where {}', args.depot_path)
+    git = pergit.vcs.Git(work_tree=work_tree)
 
 if __name__ == "__main__":
     sys.exit(main())

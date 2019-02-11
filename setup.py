@@ -67,7 +67,7 @@ setuptools.setup(**dict(
     install_requires=[],
 
     entry_points={
-        'console_scripts' : ['pergit = pergit.pergit:main'],
+        'console_scripts' : ['pergit = pergit.pergit_cli:main'],
     },
 
     # See list at https://pypi.python.org/pypi?:action=list_classifiers
