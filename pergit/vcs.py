@@ -85,16 +85,7 @@ class P4(_VCS):
         if result and current_object:
             result.append(current_object)
 
-        return result if result else current_object
-
-    def check(self, command, *args, **kwargs):
-        ''' Returns true if the command succeed, false otherwise '''
-        try:
-            self(command, *args, **kwargs)
-        except subprocess.CalledProcessError:
-            return False
-
-        return True
+        return result if len(result) > 1 else result[0]
 
 class Git(_VCS):
     ''' Wrapper representing a given git repository cloned in a given
@@ -120,13 +111,4 @@ class Git(_VCS):
         return self._work_tree
 
     def __call__(self, command, *args, **kwargs):
-        return self._run(command, *args, **kwargs).stdout
-
-    def check(self, command, *args, **kwargs):
-        ''' Returns true if the command succeed, false otherwise '''
-        try:
-            self(command, *args, **kwargs)
-        except subprocess.CalledProcessError:
-            return False
-
-        return True
+        return self._run(command, *args, **kwargs)
