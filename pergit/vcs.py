@@ -34,13 +34,15 @@ class _VCS(object):
     def _run(self, command, *args, **kwargs):
         command = self._get_command(command, *args, **kwargs)
         logging.getLogger('pergit').debug('Running %s', ' '.join(command))
-        return subprocess.run(command, text=True, capture_output=True).stdout
+        result = subprocess.run(command, check=True, text=True, capture_output=True)
+        return result.stdout
 
     def check(self, command, *args, **kwargs):
         ''' Returns true if the given command succeeds '''
         command = self._get_command(command, *args, **kwargs)
         logging.getLogger('pergit').debug('Running %s', ' '.join(command))
-        return subprocess.run(command, check=True)
+        result = subprocess.run(command, check=True)
+        return result.returncode == 0
 
     def _get_command(self, command, *args, **kwargs):
         command = command.format(*args, **kwargs)
@@ -85,7 +87,10 @@ class P4(_VCS):
         if result and current_object:
             result.append(current_object)
 
-        return result if len(result) > 1 else result[0]
+        if len(result) > 1:
+            return result
+
+        return result[0]
 
 class Git(_VCS):
     ''' Wrapper representing a given git repository cloned in a given
@@ -103,12 +108,6 @@ class Git(_VCS):
             command_prefix += ['-c', '%s=%s' % (option, value)]
 
         super().__init__(command_prefix)
-
-        self._work_tree = work_tree
-
-    def work_tree(self):
-        ''' Returns the work tree directory of this Git instance '''
-        return self._work_tree
 
     def __call__(self, command, *args, **kwargs):
         return self._run(command, *args, **kwargs)

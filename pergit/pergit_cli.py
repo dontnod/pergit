@@ -54,7 +54,6 @@ def _get_parser():
     return parser
 
 def _config_import(subparsers):
-
     description = 'Import a Perforce repository in a git branch'
     parser = subparsers.add_parser('import', description=description)
     parser.add_argument('depot_path',
@@ -65,11 +64,16 @@ def _config_import(subparsers):
                         help='Branch name where to import changes (will be created)',
                         metavar='<git-branch>')
 
+    parser.add_argument('--changelist',
+                        help='Import changes starting at this revision',
+                        default='0')
+
     def _run(args):
-        pergit.commands.Import(
-            depot_path=args.depot_path,
-            branch=args.branch
-        )
+        with pergit.commands.Import(depot_path=args.depot_path) as command:
+            command.run(
+                branch=args.branch,
+                changelist=args.changelist
+            )
 
     parser.set_defaults(command=_run)
 
