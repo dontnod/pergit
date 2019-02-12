@@ -20,34 +20,85 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' Git and Perforce call utilities '''
-import logging
 import re
 import shlex
 import subprocess
 
 P4_FIELD_RE = re.compile(r'^... (?P<key>\w+) (?P<value>.*)$')
 
+class VCSCommand(object):
+    ''' Object representing a git or perforce commmand '''
+    def __init__(self, command):
+        self._result = subprocess.run(command,
+                                      check=False,
+                                      text=True,
+                                      capture_output=True)
+
+    def check(self):
+        ''' Raises CalledProcessError if the command failed '''
+        self._result.check_returncode()
+
+    def err(self):
+        ''' Returns stdeer for this command '''
+        return self._result.stderr
+
+    def out(self):
+        ''' Returns stdout for command, raise CalledProcessError if the command
+            failed '''
+        self.check()
+        return self._result.stdout.strip()
+
+    def __bool__(self):
+        return self._result.returncode == 0
+
 class _VCS(object):
-    def __init__(self, command_prefix):
+    def __init__(self, command_class, command_prefix):
+        self._command_class = command_class
         self._command_prefix = command_prefix
 
-    def _run(self, command, *args, **kwargs):
-        command = self._get_command(command, *args, **kwargs)
-        logging.getLogger('pergit').debug('Running %s', ' '.join(command))
-        result = subprocess.run(command, check=True, text=True, capture_output=True)
-        return result.stdout
-
-    def check(self, command, *args, **kwargs):
-        ''' Returns true if the given command succeeds '''
-        command = self._get_command(command, *args, **kwargs)
-        logging.getLogger('pergit').debug('Running %s', ' '.join(command))
-        result = subprocess.run(command, check=True)
-        return result.returncode == 0
-
-    def _get_command(self, command, *args, **kwargs):
+    def __call__(self, command, *args, **kwargs):
         command = command.format(*args, **kwargs)
-        return self._command_prefix + shlex.split(command)
+        command = self._command_prefix + shlex.split(command)
+        return self._command_class(command)
 
+class P4Command(VCSCommand):
+    ''' Object representing a p4 command, containing records returned by p4 '''
+    def __init__(self, command):
+        super().__init__(command)
+        self._records = None
+
+    def __getitem__(self, index):
+        self.check()
+        if self._records is None:
+            self._records = self._parse_p4_output()
+
+        assert self._records is not None
+        return self._records[index]
+
+    def _parse_p4_output(self):
+        records = []
+        for line in self.out().split('\n'):
+            # Empty line means we have multiple objects returned, change
+            # the returned dict in a list
+            if not line:
+                if current_object:
+                    records.append(current_object)
+                    current_object = {}
+                continue
+
+            match = P4_FIELD_RE.match(line)
+            assert match
+
+            key = match.group('key')
+            value = match.group('value')
+            assert key not in current_object
+            current_object[key] = value
+
+
+        if records and current_object:
+            records.append(current_object)
+
+        return records
 
 class P4(_VCS):
     ''' Wrapper for P4 calls '''
@@ -61,36 +112,7 @@ class P4(_VCS):
             command_prefix += ['-p', port]
         if user is not None:
             command_prefix += ['-u', user]
-        super().__init__(command_prefix)
-
-    def __call__(self, command, *args, **kwargs):
-        output = self._run(command, *args, **kwargs)
-        result = []
-        current_object = {}
-        for line in output.split('\n'):
-            # Empty line means we have multiple objects returned, change
-            # the returned dict in a list
-            if not line:
-                if current_object:
-                    result.append(current_object)
-                    current_object = {}
-                continue
-
-            match = P4_FIELD_RE.match(line)
-            assert match
-
-            key = match.group('key')
-            value = match.group('value')
-            assert key not in current_object
-            current_object[key] = value
-
-        if result and current_object:
-            result.append(current_object)
-
-        if len(result) > 1:
-            return result
-
-        return result[0]
+        super().__init__(P4Command, command_prefix)
 
 class Git(_VCS):
     ''' Wrapper representing a given git repository cloned in a given
@@ -107,7 +129,4 @@ class Git(_VCS):
         for option, value in config.items():
             command_prefix += ['-c', '%s=%s' % (option, value)]
 
-        super().__init__(command_prefix)
-
-    def __call__(self, command, *args, **kwargs):
-        return self._run(command, *args, **kwargs)
+        super().__init__(VCSCommand, command_prefix)

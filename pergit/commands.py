@@ -22,8 +22,11 @@
 ''' pergit commands '''
 import abc
 import logging
+import gettext
 
 import pergit.vcs
+
+_ = gettext.gettext
 
 class CommandError(Exception):
     ''' Error raised when a command fails '''
@@ -51,34 +54,42 @@ class _Command(abc.ABC):
 
     def __enter__(self):
         self._p4 = pergit.vcs.P4()
-
-        where = self._p4('where "{}"', self._depot_path)
-
-        if isinstance(where, list):
-            self._error('Got multiple results when retrieving path to working'
-                        'tree from Perforce. Check that your work tree is not'
-                        'unmapped (-//Worktree/path) in your Perforce client'
-                        'configuration, as it is not supported')
-
-        assert isinstance(where, dict)
-        self._work_tree = where['path']
-
-        p4_root = self._work_tree + '/...'
-
-        # Reverting and cleaning files in order to not commit trash to git
-        self._p4.check('revert {}', p4_root)
-        self._p4.check('clean {}', p4_root)
+        self._work_tree = self._get_work_tree()
 
         git_config = {'core.fileMode': 'false'}
         self._git = pergit.vcs.Git(config=git_config, work_tree=self._work_tree)
 
-        if self._git.check('git rev-parse --is-inside-work-tree'):
-            self._previous_head = self._git('rev-parse HEAD')
+        p4_root = self._work_tree + '/...'
+
+        # Reverting and cleaning files in order to not commit trash to git
+        p4 = self._p4
+        p4('revert {}', p4_root).check()
+        p4('clean {}', p4_root).check()
+
+        git = self._git
+        if git('git rev-parse --is-inside-work-tree'):
+            self._previous_head = git('rev-parse HEAD').out()
+
         return self
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         if self._previous_head is not None:
-            self._git('reset --mixed {}', self._previous_head)
+            self._git('reset --mixed {}', self._previous_head).check()
+
+    def _get_work_tree(self):
+        where = self._p4('where "{}"', self._depot_path)
+        if not where:
+            err = _('Can\'t retrieve work tree root from Perforce path : {}')
+            self._error(err, where.err())
+
+        if len(where) > 1:
+            self._error(_('Got multiple results when retrieving path to working'
+                          'tree from Perforce. Check that your work tree is not'
+                          'unmapped (-//Worktree/path) in your Perforce client'
+                          'configuration, as it is not supported.'))
+
+        assert 'path' in where[0]
+        return where[0]['path']
 
 class Import(_Command):
     ''' Imports a Perforce depot into a git branch '''
@@ -91,21 +102,21 @@ class Import(_Command):
         if changelist is None:
             changelist = 0
 
-        if not git.check('git rev-parse --is-inside-work-tree'):
-            git('init')
+        if not git('git rev-parse --is-inside-work-tree'):
+            git('init').check()
 
-        if git.check('rev-parse --verify {branch}', branch):
+        if git('rev-parse --verify {branch}', branch):
             self._error('branch {} already exists, can\'t import on top of it',
                         branch)
 
-        git('checkout --orphan {}', branch)
+        git('checkout --orphan {}', branch).check()
 
         changelists = p4('changes {}/...@{},#head', self._work_tree, changelist)
 
         for change in changelists:
-            p4('sync {}/...@{}', self._work_tree, change['change'])
+            p4('sync {}/...@{}', self._work_tree, change['change']).check()
             description = change['desc'].replace('"', '\\"')
-            git('commit . -m "{}"', description)
+            git('commit . -m "{}"', description).check()
 
     def _cleanup(self):
         pass
