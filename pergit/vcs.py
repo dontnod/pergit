@@ -68,21 +68,31 @@ class P4Command(VCSCommand):
         self._records = None
 
     def __getitem__(self, index):
-        self.check()
-        if self._records is None:
-            self._records = self._parse_p4_output()
-
+        self._eval_output()
         assert self._records is not None
         return self._records[index]
 
-    def _parse_p4_output(self):
-        records = []
+    def __bool__(self):
+        return super().__bool__() and len(self) != 0
+
+    def __len__(self):
+        self._eval_output()
+        assert self._records is not None
+        return len(self._records)
+
+    def _eval_output(self):
+        if self._records is not None:
+            return
+
+        self.check()
+        self._records = []
+        current_object = {}
         for line in self.out().split('\n'):
             # Empty line means we have multiple objects returned, change
             # the returned dict in a list
             if not line:
                 if current_object:
-                    records.append(current_object)
+                    self._records.append(current_object)
                     current_object = {}
                 continue
 
@@ -95,10 +105,8 @@ class P4Command(VCSCommand):
             current_object[key] = value
 
 
-        if records and current_object:
-            records.append(current_object)
-
-        return records
+        if self._records and current_object:
+            self._records.append(current_object)
 
 class P4(_VCS):
     ''' Wrapper for P4 calls '''
