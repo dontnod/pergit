@@ -104,8 +104,7 @@ class P4Command(VCSCommand):
             assert key not in current_object
             current_object[key] = value
 
-
-        if self._records and current_object:
+        if current_object:
             self._records.append(current_object)
 
 class P4(_VCS):
