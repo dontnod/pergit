@@ -129,8 +129,7 @@ class Git(_VCS):
     def __init__(self, config=None, git_dir=None, work_tree=None):
         command_prefix = ['git']
 
-        if git_dir is None:
-            git_dir = pathlib.Path.cwd / '.git')
+        if git_dir is not None:
             command_prefix += ['--git-dir', git_dir]
 
         if work_tree:
