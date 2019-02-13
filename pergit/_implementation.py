@@ -62,16 +62,13 @@ class Pergit(object):
                           ' folder of the git repository in which you want to '
                           'import Perforce depot'))
 
-        if git('rev-parse --verify {branch}', branch):
-            self._error('branch {} already exists, can\'t import on top of it',
-                        branch)
+        if not git('rev-parse --verify {}', branch):
+            git('checkout --orphan {}', branch).check()
 
-        git('checkout --orphan {}', branch).check()
+        changelists = p4('changes "{}/...@{},#head"', self._work_tree, changelist)
 
-        changelists = p4('changes {}/...@{},#head', self._work_tree, changelist)
-
-        for change in changelists:
-            p4('sync {}/...@{}', self._work_tree, change['change']).check()
+        for change in reversed(changelists):
+            p4('sync "{}/...@{}"', self._work_tree, change['change']).check()
             description = change['desc'].replace('"', '\\"')
             git('commit . -m "{}"', description).check()
 

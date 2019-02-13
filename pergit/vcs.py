@@ -88,26 +88,41 @@ class P4Command(VCSCommand):
 
         self.check()
         self._records = []
-        current_object = {}
+        current_record = {}
+        current_key = None
+        current_value = None
         for line in self.out().split('\n'):
             # Empty line means we have multiple objects returned, change
             # the returned dict in a list
-            if not line:
-                if current_object:
-                    self._records.append(current_object)
-                    current_object = {}
-                continue
-
             match = P4_FIELD_RE.match(line)
-            assert match
 
-            key = match.group('key')
-            value = match.group('value')
-            assert key not in current_object
-            current_object[key] = value
+            if not match:
+                # We maybe are parsing a multiline value
+                current_value += line
+            else:
+                key = match.group('key')
+                value = match.group('value')
 
-        if current_object:
-            self._records.append(current_object)
+                if current_key:
+                    assert current_key is not None
+                    assert current_value is not None
+                    # If key is already in the current record, we started to parse
+                    # another record
+                    if key not in current_record:
+                        # Append currently parsed value to current record
+                        assert current_value is not None
+                        current_record[current_key] = current_value.strip()
+                    else:
+                        self._records.append(current_record)
+                        current_record = {}
+                current_key = key
+                current_value = value
+
+        if current_key:
+            assert current_key is not None
+            assert current_value is not None
+            current_record[current_key] = current_value.strip()
+            self._records.append(current_record)
 
 class P4(_VCS):
     ''' Wrapper for P4 calls '''
