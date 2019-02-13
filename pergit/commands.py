@@ -34,6 +34,12 @@ class CommandError(Exception):
         super().__init__()
         self._message = message
 
+    def __repr__(self):
+        return self._message
+
+    def __str__(self):
+        return self._message
+
 class _Command(abc.ABC):
     ''' Pergit command base class '''
     def __init__(self, depot_path):

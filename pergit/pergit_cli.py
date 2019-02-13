@@ -36,6 +36,8 @@ def main(argv=None):
     parser = _get_parser()
     args = parser.parse_args()
 
+    logging.basicConfig()
+
     try:
         args.command(args)
     except pergit.commands.CommandError as error:
