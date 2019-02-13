@@ -25,7 +25,7 @@ import sys
 import argparse
 import logging
 
-import pergit.commands
+import pergit
 
 def main(argv=None):
     ''' gitp4 entry point '''
@@ -39,25 +39,17 @@ def main(argv=None):
     logging.basicConfig()
 
     try:
-        args.command(args)
-    except pergit.commands.CommandError as error:
+        with pergit.Pergit(path=args.path) as impl:
+            impl.sychronize(
+                branch=args.branch,
+                changelist=args.changelist
+            )
+    except pergit.PergitError as error:
         logging.getLogger('pergit').error(error)
 
 def _get_parser():
     parser = argparse.ArgumentParser()
 
-    subparsers = parser.add_subparsers(metavar='<command>',
-                                       description='Sub command')
-
-    _config_commands = [_config_import, _config_sync]
-    for config in _config_commands:
-        config(subparsers)
-
-    return parser
-
-def _config_import(subparsers):
-    description = 'Import a Perforce repository in a git branch'
-    parser = subparsers.add_parser('import', description=description)
     parser.add_argument('path',
                         help='Root path of the mapped Perforce repository to sync',
                         metavar='<path>')
@@ -70,18 +62,7 @@ def _config_import(subparsers):
                         help='Import changes starting at this revision',
                         default='0')
 
-    def _run(args):
-        with pergit.commands.Import(path=args.path) as command:
-            command.run(
-                branch=args.branch,
-                changelist=args.changelist
-            )
-
-    parser.set_defaults(command=_run)
-
-def _config_sync(subparsers):
-    description = 'Synchronize a perforce repository with git'
-    subparsers.add_parser('sync', description=description)
+    return parser
 
 if __name__ == "__main__":
     sys.exit(main())

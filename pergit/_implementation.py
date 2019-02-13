@@ -20,7 +20,6 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' pergit commands '''
-import abc
 import logging
 import gettext
 
@@ -28,7 +27,7 @@ import pergit.vcs
 
 _ = gettext.gettext
 
-class CommandError(Exception):
+class PergitError(Exception):
     ''' Error raised when a command fails '''
     def __init__(self, message):
         super().__init__()
@@ -40,8 +39,8 @@ class CommandError(Exception):
     def __str__(self):
         return self._message
 
-class _Command(abc.ABC):
-    ''' Pergit command base class '''
+class Pergit(object):
+    ''' Imports a Perforce depot into a git branch '''
     def __init__(self, path):
         self._work_tree = path
         self._logger = logging.getLogger('pergit')
@@ -50,13 +49,39 @@ class _Command(abc.ABC):
                                    work_tree=self._work_tree)
         self._previous_head = None
 
+    def sychronize(self, branch, changelist):
+        ''' Runs the import command '''
+        git = self._git
+        p4 = self._p4
+
+        if changelist is None:
+            changelist = 0
+
+        if not git('rev-parse --is-inside-work-tree'):
+            self._error(_('Not in a git repository, please run pergit from the'
+                          ' folder of the git repository in which you want to '
+                          'import Perforce depot'))
+
+        if git('rev-parse --verify {branch}', branch):
+            self._error('branch {} already exists, can\'t import on top of it',
+                        branch)
+
+        git('checkout --orphan {}', branch).check()
+
+        changelists = p4('changes {}/...@{},#head', self._work_tree, changelist)
+
+        for change in changelists:
+            p4('sync {}/...@{}', self._work_tree, change['change']).check()
+            description = change['desc'].replace('"', '\\"')
+            git('commit . -m "{}"', description).check()
+
     def _info(self, fmt, *args, **kwargs):
         ''' Logs an info '''
         self._logger.info(fmt, *args, **kwargs)
 
     def _error(self, fmt, *args, **kwargs):
         ''' Logs an error '''
-        raise CommandError(fmt.format(*args, **kwargs))
+        raise PergitError(fmt.format(*args, **kwargs))
 
     def __enter__(self):
         p4_root = self._work_tree + '/...'
@@ -75,34 +100,4 @@ class _Command(abc.ABC):
     def __exit__(self, ex_type, ex_value, ex_traceback):
         if self._previous_head is not None:
             self._git('reset --mixed {}', self._previous_head).check()
-
-class Import(_Command):
-    ''' Imports a Perforce depot into a git branch '''
-
-    def run(self, branch, changelist):
-        ''' Runs the import command '''
-        git = self._git
-        p4 = self._p4
-
-        if changelist is None:
-            changelist = 0
-
-        if not git('git rev-parse --is-inside-work-tree'):
-            git('init').check()
-
-        if git('rev-parse --verify {branch}', branch):
-            self._error('branch {} already exists, can\'t import on top of it',
-                        branch)
-
-        git('checkout --orphan {}', branch).check()
-
-        changelists = p4('changes {}/...@{},#head', self._work_tree, changelist)
-
-        for change in changelists:
-            p4('sync {}/...@{}', self._work_tree, change['change']).check()
-            description = change['desc'].replace('"', '\\"')
-            git('commit . -m "{}"', description).check()
-
-    def _cleanup(self):
-        pass
         

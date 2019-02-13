@@ -20,6 +20,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' Git and Perforce call utilities '''
+import os
+import pathlib
 import re
 import shlex
 import subprocess
@@ -127,8 +129,9 @@ class Git(_VCS):
     def __init__(self, config=None, git_dir=None, work_tree=None):
         command_prefix = ['git']
 
-        if git_dir:
-            command_prefix += ['--git-dir', work_tree]
+        if git_dir is None:
+            git_dir = pathlib.Path.cwd / '.git')
+            command_prefix += ['--git-dir', git_dir]
 
         if work_tree:
             command_prefix += ['--work-tree', work_tree]
