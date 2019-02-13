@@ -42,13 +42,13 @@ class CommandError(Exception):
 
 class _Command(abc.ABC):
     ''' Pergit command base class '''
-    def __init__(self, depot_path):
-        self._depot_path = depot_path
-        self._git = None
+    def __init__(self, path):
+        self._work_tree = path
         self._logger = logging.getLogger('pergit')
-        self._p4 = None
+        self._p4 = pergit.vcs.P4()
+        self._git = pergit.vcs.Git(config={'core.fileMode': 'false'},
+                                   work_tree=self._work_tree)
         self._previous_head = None
-        self._work_tree = None
 
     def _info(self, fmt, *args, **kwargs):
         ''' Logs an info '''
@@ -59,18 +59,12 @@ class _Command(abc.ABC):
         raise CommandError(fmt.format(*args, **kwargs))
 
     def __enter__(self):
-        self._p4 = pergit.vcs.P4()
-        self._work_tree = self._get_work_tree()
-
-        git_config = {'core.fileMode': 'false'}
-        self._git = pergit.vcs.Git(config=git_config, work_tree=self._work_tree)
-
         p4_root = self._work_tree + '/...'
 
         # Reverting and cleaning files in order to not commit trash to git
         p4 = self._p4
-        p4('revert {}', p4_root).check()
-        p4('clean {}', p4_root).check()
+        p4('revert "{}"', p4_root).check()
+        p4('clean "{}"', p4_root).check()
 
         git = self._git
         if git('git rev-parse --is-inside-work-tree'):
@@ -81,21 +75,6 @@ class _Command(abc.ABC):
     def __exit__(self, ex_type, ex_value, ex_traceback):
         if self._previous_head is not None:
             self._git('reset --mixed {}', self._previous_head).check()
-
-    def _get_work_tree(self):
-        where = self._p4('where "{}"', self._depot_path)
-        if not where:
-            err = _('Can\'t retrieve work tree root from Perforce path : {}')
-            self._error(err, where.err())
-
-        if len(where) > 1:
-            self._error(_('Got multiple results when retrieving path to working'
-                          'tree from Perforce. Check that your work tree is not'
-                          'unmapped (-//Worktree/path) in your Perforce client'
-                          'configuration, as it is not supported.'))
-
-        assert 'path' in where[0]
-        return where[0]['path']
 
 class Import(_Command):
     ''' Imports a Perforce depot into a git branch '''
