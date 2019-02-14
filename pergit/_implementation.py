@@ -178,7 +178,13 @@ class Pergit(object):
         git('commit --allow-empty -m "{}"', description).check()
 
     def _tag_commit(self, tag_prefix, change):
-        self._git('tag {}@{}', tag_prefix, change['change']).check()
+        git = self._git
+        tag = '{}@{}'.format(tag_prefix, change['change'])
+
+        if git('tag -l {}', tag).out():
+            self._warn(_('Tag %s already existed, it will be replaced.'), tag)
+
+        git('tag -f {}', tag).check()
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
