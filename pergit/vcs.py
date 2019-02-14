@@ -112,23 +112,22 @@ class P4Command(VCSCommand):
                 # We maybe are parsing a multiline value
                 current_value += line
             else:
-                key = match.group('key')
-                value = match.group('value')
+                next_key = match.group('key')
+                next_value = match.group('value')
 
                 if current_key:
                     assert current_key is not None
                     assert current_value is not None
-                    # If key is already in the current record, we started to parse
-                    # another record
-                    if key not in current_record:
-                        # Append currently parsed value to current record
-                        assert current_value is not None
-                        current_record[current_key] = current_value.strip()
-                    else:
+                    assert current_key not in current_record
+                    current_record[current_key] = current_value.strip()
+
+                    # If next key is already in the current record, we started
+                    # to parse another record
+                    if next_key in current_record:
                         self._records.append(current_record)
                         current_record = {}
-                current_key = key
-                current_value = value
+                current_key = next_key
+                current_value = next_value
 
         if current_key:
             assert current_key is not None

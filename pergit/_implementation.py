@@ -81,7 +81,6 @@ class Pergit(object):
     def sychronize(self, branch, changelist):
         ''' Runs the import command '''
         git = self._git
-        p4 = self._p4
 
         if changelist is None:
             changelist = 0
@@ -126,13 +125,11 @@ class Pergit(object):
                    change['desc'])
         p4('sync "{}/...@{}"', self._work_tree, change['change']).check()
         description = change['desc'].replace('"', '\\"')
-        if git('status --porcelain').out():
-            git('add .').check()
-            git('commit -m "{}"', description).check()
-        else:
-            self._info(_('-> No changes detected, skipping and tagging last '
-                         'commit with current Perforce revision'))
-            
+        git('add .').check()
+
+        # Commit event if there are no changes, to keep P4 C.L description
+        # and corresponding tag in git history
+        git('commit --allow-empty -m "{}"', description).check()
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
