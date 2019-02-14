@@ -105,6 +105,12 @@ class Pergit(object):
 
         perforce_changes = list(self._get_perforce_changes(changelist))
 
+        # last_synced_cl is already sync, but when giving --changelist as
+        # argument, one would expect that the change range is inclusive
+        if changelist == last_synced_cl:
+            assert perforce_changes[0]['change'] == last_synced_cl
+            perforce_changes = perforce_changes[1:]
+
         if perforce_changes and git_changes:
             self._error('You have changes both from P4 and git side, refusing'
                         'to sync')
@@ -112,13 +118,16 @@ class Pergit(object):
             for change in perforce_changes:
                 self._import_changelist(change)
                 self._tag_commit(tag_prefix, change)
+        elif git_changes:
+            # todo : submit git changes
+            pass
+        else:
+            self._info('Nothing to sync')
 
     def _get_perforce_changes(self, changelist):
-        last_synced_cl = changelist # todo : check git tags
-
         changelists = self._p4('changes -l "{}/...@{},#head"',
                                self._work_tree,
-                               last_synced_cl)
+                               changelist)
 
         return reversed(changelists)
 
@@ -145,7 +154,7 @@ class Pergit(object):
                 if not match:
                     self._warn('Commit {} seems to have a changelist tag, but'
                                't\'s format is incorrect. This commit will be '
-                               'considered as a git-side change')
+                               'considered as a git-side change.')
                     git_changes.append(commit)
                     continue
 

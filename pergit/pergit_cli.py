@@ -70,7 +70,7 @@ def _get_parser():
 
     parser.add_argument('--changelist',
                         help='Import changes starting at this revision',
-                        default='0')
+                        default=None)
 
     parser.add_argument('--cl-tag-prefix',
                         help='Prefix for Perforce C.L tags (defaults to branch',
