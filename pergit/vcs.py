@@ -150,6 +150,28 @@ class P4(_VCS):
             command_prefix += ['-u', user]
         super().__init__(P4Command, command_prefix)
 
+class GitCommand(VCSCommand):
+    ''' Object representing a git command, containing lines returned by it '''
+    def __init__(self, command):
+        super().__init__(command)
+        self._lines = None
+
+    def __getitem__(self, index):
+        self._eval_output()
+        assert self._lines is not None
+        return self._lines[index]
+
+    def __len__(self):
+        self._eval_output()
+        assert self._lines is not None
+        return len(self._lines)
+
+    def _eval_output(self):
+        if self._lines is not None:
+            return
+        self.check()
+        self._lines = self.out().split('\n')
+
 class Git(_VCS):
     ''' Wrapper representing a given git repository cloned in a given
         directory '''
@@ -165,4 +187,4 @@ class Git(_VCS):
         for option, value in config.items():
             command_prefix += ['-c', '%s=%s' % (option, value)]
 
-        super().__init__(VCSCommand, command_prefix)
+        super().__init__(GitCommand, command_prefix)

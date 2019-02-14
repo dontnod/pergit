@@ -49,23 +49,6 @@ class Pergit(object):
                                    work_tree=self._work_tree)
         self._previous_head = None
 
-    def sychronize(self, branch, changelist):
-        ''' Runs the import command '''
-        git = self._git
-        p4 = self._p4
-
-        if changelist is None:
-            changelist = 0
-
-        git('symbolic-ref HEAD refs/heads/{}', branch)
-
-        changelists = p4('changes "{}/...@{},#head"', self._work_tree, changelist)
-
-        for change in reversed(changelists):
-            p4('sync "{}/...@{}"', self._work_tree, change['change']).check()
-            description = change['desc'].replace('"', '\\"')
-            git('commit . -m "{}"', description).check()
-
     def _info(self, fmt, *args, **kwargs):
         ''' Logs an info '''
         logging.getLogger(pergit.LOGGER_NAME).info(fmt, *args, **kwargs)
@@ -95,8 +78,55 @@ class Pergit(object):
 
         return self
 
+    def sychronize(self, branch, changelist):
+        ''' Runs the import command '''
+        git = self._git
+        p4 = self._p4
+
+        if changelist is None:
+            changelist = 0
+
+        git('symbolic-ref HEAD refs/heads/{}', branch)
+
+        perforce_changes = list(self._get_perforce_changes(changelist))
+        git_changes = list(self._get_git_changes())
+
+        if perforce_changes and git_changes:
+            self._error('You have changes both from P4 and git side, refusing'
+                        'to sync')
+        elif perforce_changes:
+            for change in perforce_changes:
+                self._import_changelist(change)
+
+    def _get_perforce_changes(self, changelist):
+        last_synced_cl = changelist # todo : check git tags
+
+        changelists = self._p4('changes "{}/...@{},#head"',
+                               self._work_tree,
+                               last_synced_cl)
+
+        return reversed(changelists)
+
+    def _get_git_changes(self):
+        commits = self._git('log --ancestry-path --pretty=format:%H')
+        # This can fail when current branch doesn't have any commit, as when
+        # specified branch didn't exists. Could be nice to check for that
+        # particular error though, as anyting else would lead to overwrite some
+        # changes by importing in top of some exisitng work
+        if commits:
+            for commit in commits:
+                # todo : check git tags
+                yield commit
+
+    def _import_changelist(self, change):
+        p4 = self._p4
+        git = self._git
+        p4('sync "{}/...@{}"', self._work_tree, change['change']).check()
+        description = change['desc'].replace('"', '\\"')
+        git('add .').check()
+        git('commit -m "{}"', description).check()
+
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
         if self._previous_head is not None:
             git('symbolic-ref HEAD refs/heads/{}', self._previous_head)
-        
