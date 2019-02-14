@@ -72,6 +72,10 @@ def _get_parser():
                         help='Import changes starting at this revision',
                         default='0')
 
+    parser.add_argument('--cl-tag-prefix',
+                        help='Prefix for Perforce C.L tags (defaults to branch',
+                        default=None)
+
     parser.add_argument('--verbose',
                         help='Enable verbose mode',
                         action='store_true')

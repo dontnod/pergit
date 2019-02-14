@@ -78,12 +78,15 @@ class Pergit(object):
 
         return self
 
-    def sychronize(self, branch, changelist):
+    def sychronize(self, branch, changelist, tag_prefix=None):
         ''' Runs the import command '''
         git = self._git
 
         if changelist is None:
             changelist = 0
+
+        if not tag_prefix:
+            tag_prefix = branch
 
         git('symbolic-ref HEAD refs/heads/{}', branch)
 
@@ -96,6 +99,7 @@ class Pergit(object):
         elif perforce_changes:
             for change in perforce_changes:
                 self._import_changelist(change)
+                self._tag_commit(tag_prefix, change)
 
     def _get_perforce_changes(self, changelist):
         last_synced_cl = changelist # todo : check git tags
@@ -130,6 +134,9 @@ class Pergit(object):
         # Commit event if there are no changes, to keep P4 C.L description
         # and corresponding tag in git history
         git('commit --allow-empty -m "{}"', description).check()
+
+    def _tag_commit(self, tag_prefix, change):
+        self._git('tag {}@{}', tag_prefix, change['change']).check()
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
