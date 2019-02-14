@@ -121,10 +121,18 @@ class Pergit(object):
     def _import_changelist(self, change):
         p4 = self._p4
         git = self._git
+        self._info(_('Syncing then committing changelist %s : %s'),
+                   change['change'],
+                   change['desc'])
         p4('sync "{}/...@{}"', self._work_tree, change['change']).check()
         description = change['desc'].replace('"', '\\"')
-        git('add .').check()
-        git('commit -m "{}"', description).check()
+        if git('status --porcelain').out():
+            git('add .').check()
+            git('commit -m "{}"', description).check()
+        else:
+            self._info(_('-> No changes detected, skipping and tagging last '
+                         'commit with current Perforce revision'))
+            
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
