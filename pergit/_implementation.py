@@ -57,13 +57,7 @@ class Pergit(object):
         if changelist is None:
             changelist = 0
 
-        if not git('rev-parse --is-inside-work-tree'):
-            self._error(_('Not in a git repository, please run pergit from the'
-                          ' folder of the git repository in which you want to '
-                          'import Perforce depot'))
-
-        if not git('rev-parse --verify {}', branch):
-            git('checkout --orphan {}', branch).check()
+        git('symbolic-ref HEAD refs/heads/{}', branch)
 
         changelists = p4('changes "{}/...@{},#head"', self._work_tree, changelist)
 
@@ -89,12 +83,20 @@ class Pergit(object):
         p4('clean "{}"', p4_root).check()
 
         git = self._git
-        if git('git rev-parse --is-inside-work-tree'):
-            self._previous_head = git('rev-parse HEAD').out()
+        if not git('rev-parse --is-inside-work-tree'):
+            self._error(_('Not in a git repository, please run pergit from the'
+                          ' folder of the git repository in which you want to '
+                          'import Perforce depot'))
+
+        current_head = git('rev-parse --abbrev-ref HEAD')
+
+        if current_head:
+            self._previous_head = current_head.out()
 
         return self
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
+        git = self._git
         if self._previous_head is not None:
-            self._git('reset --mixed {}', self._previous_head).check()
+            git('symbolic-ref HEAD refs/heads/{}', self._previous_head)
         
