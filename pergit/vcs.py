@@ -20,21 +20,26 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' Git and Perforce call utilities '''
-import os
-import pathlib
+
 import re
 import shlex
 import subprocess
+import logging
+
+import pergit
 
 P4_FIELD_RE = re.compile(r'^... (?P<key>\w+) (?P<value>.*)$')
 
 class VCSCommand(object):
     ''' Object representing a git or perforce commmand '''
     def __init__(self, command):
+        logger = logging.getLogger(pergit.LOGGER_NAME)
+        logger.debug('Running %s', ' '.join(command))
         self._result = subprocess.run(command,
                                       check=False,
                                       text=True,
                                       capture_output=True)
+        VCSCommand._debug_output(self._result.stderr, '!')
 
     def check(self):
         ''' Raises CalledProcessError if the command failed '''
@@ -52,6 +57,13 @@ class VCSCommand(object):
 
     def __bool__(self):
         return self._result.returncode == 0
+
+    @staticmethod
+    def _debug_output(output, prefix):
+        logger = logging.getLogger(pergit.LOGGER_NAME)
+        if output:
+            for line in output.strip().split('\n'):
+                logger.debug(' %s %s', prefix, line)
 
 class _VCS(object):
     def __init__(self, command_class, command_prefix):

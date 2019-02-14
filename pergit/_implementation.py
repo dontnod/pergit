@@ -20,9 +20,10 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' pergit commands '''
-import logging
 import gettext
+import logging
 
+import pergit
 import pergit.vcs
 
 _ = gettext.gettext
@@ -43,7 +44,6 @@ class Pergit(object):
     ''' Imports a Perforce depot into a git branch '''
     def __init__(self, path):
         self._work_tree = path
-        self._logger = logging.getLogger('pergit')
         self._p4 = pergit.vcs.P4()
         self._git = pergit.vcs.Git(config={'core.fileMode': 'false'},
                                    work_tree=self._work_tree)
@@ -74,7 +74,7 @@ class Pergit(object):
 
     def _info(self, fmt, *args, **kwargs):
         ''' Logs an info '''
-        self._logger.info(fmt, *args, **kwargs)
+        logging.getLogger(pergit.LOGGER_NAME).info(fmt, *args, **kwargs)
 
     def _error(self, fmt, *args, **kwargs):
         ''' Logs an error '''

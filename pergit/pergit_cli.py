@@ -38,6 +38,15 @@ def main(argv=None):
 
     logging.basicConfig()
 
+    logging_format = '%(message)s'
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    if args.verbose:
+        logging.basicConfig(format=logging_format, level=logging.DEBUG)
+    else:
+        logging.basicConfig(format=logging_format, level=logging.INFO)
+
     try:
         with pergit.Pergit(path=args.path) as impl:
             impl.sychronize(
@@ -45,7 +54,8 @@ def main(argv=None):
                 changelist=args.changelist
             )
     except pergit.PergitError as error:
-        logging.getLogger('pergit').error(error)
+        logger = logging.getLogger(pergit.LOGGER_NAME)
+        logger.error(error)
 
 def _get_parser():
     parser = argparse.ArgumentParser()
@@ -61,6 +71,10 @@ def _get_parser():
     parser.add_argument('--changelist',
                         help='Import changes starting at this revision',
                         default='0')
+
+    parser.add_argument('--verbose',
+                        help='Enable verbose mode',
+                        action='store_true')
 
     return parser
 
