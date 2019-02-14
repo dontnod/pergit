@@ -101,7 +101,7 @@ class Pergit(object):
     def _get_perforce_changes(self, changelist):
         last_synced_cl = changelist # todo : check git tags
 
-        changelists = self._p4('changes "{}/...@{},#head"',
+        changelists = self._p4('changes -l "{}/...@{},#head"',
                                self._work_tree,
                                last_synced_cl)
 
