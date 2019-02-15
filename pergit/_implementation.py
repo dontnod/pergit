@@ -127,12 +127,39 @@ class Pergit(object):
         elif git_changes:
             assert not perforce_changes
             # todo : submit git changes
-            pass
         else:
             self._info('Nothing to sync')
 
-    def _get_changes(self, changelist, sync_commit, sync_changelist):
+    def _get_latest_sync_state(self, tag_prefix):
+        git = self._git
+        #todo : parse commit one-by-one, to not retrieve all git history here
+        commits = git('log --pretty=format:%H')
+        # This can fail when current branch doesn't have any commit, as when
+        # specified branch didn't exists. Could be nice to check for that
+        # particular error though, as anyting else would lead to overwrite some
+        # changes by importing in top of some exisitng work
+        if commits:
+            for commit in commits:
+                tag = git('describe --tags --exact-match --match "{}@*" {}',
+                          tag_prefix,
+                          commit)
+                if not tag:
+                    continue
 
+                match = _TAG_RE.match(tag.out())
+
+                if not match:
+                    self._warn('Commit {} seems to have a changelist tag, but'
+                               't\'s format is incorrect. This commit will be '
+                               'considered as a git-side change.')
+                    continue
+
+                changelist = match.group('changelist')
+                return commit, changelist
+
+        return None, None
+
+    def _get_changes(self, changelist, sync_commit, sync_changelist):
         if sync_changelist is None:
             sync_changelist = '0'
         if changelist is None:
@@ -165,72 +192,12 @@ class Pergit(object):
 
         return commits, changelists
 
-    def _get_latest_sync_state(self, tag_prefix):
-        git = self._git
-        #todo : parse commit one-by-one, to not retrieve all git history here
-        commits = git('log --pretty=format:%H')
-        # This can fail when current branch doesn't have any commit, as when
-        # specified branch didn't exists. Could be nice to check for that
-        # particular error though, as anyting else would lead to overwrite some
-        # changes by importing in top of some exisitng work
-        if commits:
-            for commit in commits:
-                tag = git('describe --tags --exact-match --match "{}@*" {}',
-                          tag_prefix,
-                          commit)
-                if not tag:
-                    continue
-
-                match = _TAG_RE.match(tag.out())
-
-                if not match:
-                    self._warn('Commit {} seems to have a changelist tag, but'
-                               't\'s format is incorrect. This commit will be '
-                               'considered as a git-side change.')
-                    continue
-
-                changelist = match.group('changelist')
-                return commit, changelist
-
-        return None, None
-
     def _get_perforce_changes(self, changelist):
         changelists = self._p4('changes -l "{}/...@{},#head"',
                                self._work_tree,
                                changelist)
 
         return reversed(changelists)
-
-    def _get_git_changes(self, tag_prefix):
-        git = self._git
-        commits = git('log --pretty=format:%H')
-        last_synced_cl = 0
-        git_changes = []
-        # This can fail when current branch doesn't have any commit, as when
-        # specified branch didn't exists. Could be nice to check for that
-        # particular error though, as anyting else would lead to overwrite some
-        # changes by importing in top of some exisitng work
-        if commits:
-            for commit in commits:
-                tag = git('describe --tags --exact-match --match "{}@*" {}',
-                          tag_prefix,
-                          commit)
-                if not tag:
-                    git_changes.append(commit)
-                    continue
-                match = Pergit._TAG_RE.match(tag.out())
-
-                if not match:
-                    self._warn('Commit {} seems to have a changelist tag, but'
-                               't\'s format is incorrect. This commit will be '
-                               'considered as a git-side change.')
-                    git_changes.append(commit)
-                    continue
-
-                last_synced_cl = match.group('change')
-                break
-
-        return git_changes, last_synced_cl
 
     def _import_changelist(self, change):
         p4 = self._p4
