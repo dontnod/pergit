@@ -126,6 +126,10 @@ class P4Command(VCSCommand):
 
         self.check()
         self._records = []
+
+        if not self.out():
+            return
+
         current_record = {}
         current_key = None
         current_value = None
