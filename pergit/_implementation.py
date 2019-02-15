@@ -33,6 +33,7 @@ _TAG_RE = re.compile(r'^.*@(?P<changelist>\d+)')
 ON_CONFLICT_FAIL = 0
 ON_CONFLICT_RESET = 1
 ON_CONFLICT_ERASE = 2
+ON_CONFLICT_SKIP = 3
 
 class PergitError(Exception):
     ''' Error raised when a command fails '''
@@ -111,11 +112,13 @@ class Pergit(object):
                 # todo : explain on conflict handling
                 self._error(_('You have changes both from P4 and git side, '
                               'refusing to sync'))
-            git_changes = []
             if on_conflict == ON_CONFLICT_RESET:
                 git('reset --mixed {}', sync_commit)
+                git_changes = []
             elif on_conflict == ON_CONFLICT_ERASE:
-                pass # Nothing to to, will import on top of existing branch
+                git_changes = []
+            elif on_conflict == ON_CONFLICT_SKIP:
+                perforce_changes = []
             else:
                 assert False, 'Not implemented'
 
@@ -124,7 +127,7 @@ class Pergit(object):
             self._import_changes(tag_prefix, perforce_changes)
         elif git_changes:
             assert not perforce_changes
-            # todo : submit git changes
+            self._export_changes(tag_prefix, git_changes)
         else:
             self._info('Nothing to sync')
 
@@ -250,6 +253,22 @@ class Pergit(object):
             self._warn(_('Tag %s already existed, it will be replaced.'), tag)
 
         git('tag -f {}', tag).check()
+
+    def _export_changes(self, tag_prefix, commits):
+        p4 = self._p4
+        git = self._git
+        root = self._work_tree
+        self._info(_('Syncing perforce'))
+        p4('sync "{}/..."', root).check()
+        for commit in commits:
+            description = git('show -s --pretty=format:%B').out()
+            self._info(_('Submitting commit %s : %s'), commit[:10], description)
+            git('checkout -f --recurse-submodule {}', commit).check()
+            git('clean -fd').check()
+            p4('reconcile "{}/..."', root).check()
+            p4('submit -d "{}" "{}/..."', description, root).check()
+            change = p4('changes -m 1 -s submitted').single_record()
+            self._tag_commit(tag_prefix, change['change']).check()
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git

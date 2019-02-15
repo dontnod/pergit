@@ -54,11 +54,16 @@ def main(argv=None):
                 on_conflict = pergit.ON_CONFLICT_ERASE
             elif args.on_conflict == 'reset':
                 on_conflict = pergit.ON_CONFLICT_RESET
+            elif args.on_conflict == 'skip':
+                on_conflict = pergit.ON_CONFLICT_SKIP
+            else:
+                assert False
 
             impl.sychronize(
                 branch=args.branch,
                 changelist=args.changelist,
                 on_conflict=on_conflict,
+                tag_prefix=args.tag_prefix
             )
     except pergit.PergitError as error:
         logger = logging.getLogger(pergit.LOGGER_NAME)
@@ -79,13 +84,13 @@ def _get_parser():
                         help='Import changes starting at this revision',
                         default=None)
 
-    parser.add_argument('--cl-tag-prefix',
+    parser.add_argument('--tag-prefix',
                         help='Prefix for Perforce C.L tags (defaults to branch',
                         default=None)
 
     parser.add_argument('--on-conflict',
                         help='What to do when there are change both sides of git and Perforce',
-                        choices=['fail', 'reset', 'erase'],
+                        choices=['fail', 'reset', 'erase', 'skip'],
                         default='fail')
 
     parser.add_argument('--verbose',

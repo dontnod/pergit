@@ -28,6 +28,7 @@ import pergit._implementation
 from ._implementation import ON_CONFLICT_ERASE
 from ._implementation import ON_CONFLICT_FAIL
 from ._implementation import ON_CONFLICT_RESET
+from ._implementation import ON_CONFLICT_SKIP
 from ._implementation import Pergit
 from ._implementation import PergitError
 

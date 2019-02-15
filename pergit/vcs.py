@@ -101,6 +101,8 @@ class P4Command(VCSCommand):
         self._records = None
 
     def single_record(self):
+        ''' Checks there is a single record returned by Perforce and returns
+            it '''
         self._eval_output()
         assert len(self._records) == 1
         return self._records[0]
