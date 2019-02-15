@@ -121,10 +121,7 @@ class Pergit(object):
 
         if perforce_changes:
             assert not git_changes
-            user_cache = {}
-            for change in perforce_changes:
-                self._import_changelist(change, user_cache)
-                self._tag_commit(tag_prefix, change)
+            self._import_changes(tag_prefix, perforce_changes)
         elif git_changes:
             assert not perforce_changes
             # todo : submit git changes
@@ -200,7 +197,17 @@ class Pergit(object):
 
         return reversed(changelists)
 
-    def _import_changelist(self, change, user_cache):
+    def _import_changes(self, tag_prefix, changes):
+        info = self._p4('info').single_record()
+        date_re = r'\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} ([+|-]\d{4}) .*$'
+        date_re = re.compile(date_re)
+        utc_offset = date_re.match(info['serverDate']).group(1)
+        user_cache = {}
+        for change in changes:
+            self._import_changelist(change, utc_offset, user_cache)
+            self._tag_commit(tag_prefix, change)
+
+    def _import_changelist(self, change, utc_offset, user_cache):
         p4 = self._p4
         git = self._git
         self._info(_('Syncing then committing changelist %s : %s'),
@@ -213,9 +220,11 @@ class Pergit(object):
         # Commit event if there are no changes, to keep P4 C.L description
         # and corresponding tag in git history
         author = self._get_author(change, user_cache)
-        git('commit --allow-empty --author "{}" -m "{}"',
-            author,
-            description).check()
+        date = '%s %s' % (change['time'], utc_offset)
+        with git.with_env(GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date):
+            git('commit --allow-empty --author "{}" -m "{}"',
+                author,
+                description).check()
 
     def _get_author(self, change, user_cache):
         user = change['user']

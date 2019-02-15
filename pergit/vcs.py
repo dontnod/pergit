@@ -21,7 +21,9 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' Git and Perforce call utilities '''
 
+import contextlib
 import logging
+import os
 import re
 import shlex
 import subprocess
@@ -32,7 +34,7 @@ P4_FIELD_RE = re.compile(r'^... (?P<key>\w+) (?P<value>.*)$')
 
 class VCSCommand(object):
     ''' Object representing a git or perforce commmand '''
-    def __init__(self, command):
+    def __init__(self, command, env):
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.debug('Running %s', ' '.join(command))
         # Todo : encoding is hard coded, we shouldn't do that
@@ -40,7 +42,8 @@ class VCSCommand(object):
                                       check=False,
                                       text=True,
                                       capture_output=True,
-                                      encoding='cp1252')
+                                      encoding='cp1252',
+                                      env=env)
         VCSCommand._debug_output(self._result.stderr, '!')
 
     def check(self):
@@ -71,17 +74,36 @@ class _VCS(object):
     def __init__(self, command_class, command_prefix):
         self._command_class = command_class
         self._command_prefix = command_prefix
+        self._env_stack = []
+
+    @contextlib.contextmanager
+    def with_env(self, **kwargs):
+        ''' Calls to the VCS in the scope of this context managed method
+            will have given variables added to environment '''
+        self._env_stack.append(dict(**kwargs))
+        count = len(self._env_stack)
+        yield
+        assert len(self._env_stack) == count
+        self._env_stack.pop()
 
     def __call__(self, command, *args, **kwargs):
+        env = os.environ.copy()
+        for env_it in self._env_stack:
+            env.update(env_it)
         command = command.format(*args, **kwargs)
         command = self._command_prefix + shlex.split(command)
-        return self._command_class(command)
+        return self._command_class(command, env)
 
 class P4Command(VCSCommand):
     ''' Object representing a p4 command, containing records returned by p4 '''
-    def __init__(self, command):
-        super().__init__(command)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._records = None
+
+    def single_record(self):
+        self._eval_output()
+        assert len(self._records) == 1
+        return self._records[0]
 
     def __getitem__(self, index):
         self._eval_output()
@@ -153,8 +175,8 @@ class P4(_VCS):
 
 class GitCommand(VCSCommand):
     ''' Object representing a git command, containing lines returned by it '''
-    def __init__(self, command):
-        super().__init__(command)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._lines = None
 
     def __getitem__(self, index):

@@ -58,7 +58,7 @@ def main(argv=None):
             impl.sychronize(
                 branch=args.branch,
                 changelist=args.changelist,
-                on_conflict=on_conflict
+                on_conflict=on_conflict,
             )
     except pergit.PergitError as error:
         logger = logging.getLogger(pergit.LOGGER_NAME)
