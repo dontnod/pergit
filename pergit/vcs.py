@@ -25,7 +25,6 @@ import logging
 import re
 import shlex
 import subprocess
-import sys
 
 import pergit
 
