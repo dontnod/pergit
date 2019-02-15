@@ -28,6 +28,11 @@ import pergit
 import pergit.vcs
 
 _ = gettext.gettext
+_TAG_RE = re.compile(r'^.*@(?P<changelist>\d+)')
+
+CONFLICT_FAIL = 0
+CONFLICT_RESET = 1
+CONFLICT_ERASE = 2
 
 class PergitError(Exception):
     ''' Error raised when a command fails '''
@@ -83,7 +88,11 @@ class Pergit(object):
 
         return self
 
-    def sychronize(self, branch, changelist, tag_prefix=None):
+    def sychronize(self,
+                   branch,
+                   changelist,
+                   tag_prefix=None,
+                   conflict_handling=CONFLICT_FAIL):
         ''' Runs the import command '''
         git = self._git
 
@@ -92,37 +101,98 @@ class Pergit(object):
 
         git('symbolic-ref HEAD refs/heads/{}', branch)
 
-        git_changes, last_synced_cl = list(self._get_git_changes(tag_prefix))
+        sync_commit, sync_changelist = self._get_latest_sync_state(tag_prefix)
+        git_changes, perforce_changes = self._get_changes(changelist,
+                                                          sync_commit,
+                                                          sync_changelist)
 
-        if changelist is not None and last_synced_cl > changelist:
+        if perforce_changes and git_changes:
+            if conflict_handling == CONFLICT_FAIL:
+                # todo : explain on conflict handling
+                self._error(_('You have changes both from P4 and git side, '
+                              'refusing to sync'))
+            git_changes = []
+            if conflict_handling == CONFLICT_RESET:
+                git('reset --mixed {}', sync_commit)
+            elif conflict_handling == CONFLICT_ERASE:
+                pass # Nothing to to, will import on top of existing branch
+            else:
+                assert False, 'Not implemented'
+
+        if perforce_changes:
+            assert not git_changes
+            for change in perforce_changes:
+                self._import_changelist(change)
+                self._tag_commit(tag_prefix, change)
+        elif git_changes:
+            assert not perforce_changes
+            # todo : submit git changes
+            pass
+        else:
+            self._info('Nothing to sync')
+
+    def _get_changes(self, changelist, sync_commit, sync_changelist):
+
+        if sync_changelist is None:
+            sync_changelist = '0'
+        if changelist is None:
+            changelist = sync_changelist
+
+        if changelist is not None and sync_changelist > changelist:
             self._error(_('Trying sync at a C.L anterior to the latest synced '
                           'C.L. This would duplicate commits on top of the '
                           ' current branch. Reset your branch to the changelist'
                           ' you want to sync from, then run pergit again'))
 
-        if changelist is None:
-            changelist = last_synced_cl
+        changelists = self._p4('changes -l "{}/...@{},#head"',
+                               self._work_tree,
+                               changelist)
 
-        perforce_changes = list(self._get_perforce_changes(changelist))
+        changelists = list(reversed(changelists))
 
         # last_synced_cl is already sync, but when giving --changelist as
         # argument, one would expect that the change range is inclusive
-        if changelist == last_synced_cl:
-            assert perforce_changes[0]['change'] == last_synced_cl
-            perforce_changes = perforce_changes[1:]
+        if changelist == sync_changelist:
+            assert changelists[0]['change'] == sync_changelist
+            changelists = changelists[1:]
 
-        if perforce_changes and git_changes:
-            self._error('You have changes both from P4 and git side, refusing'
-                        'to sync')
-        elif perforce_changes:
-            for change in perforce_changes:
-                self._import_changelist(change)
-                self._tag_commit(tag_prefix, change)
-        elif git_changes:
-            # todo : submit git changes
-            pass
+        if sync_commit:
+            commits = self._git('log --pretty=format:%H --ancestry-path {}..HEAD', sync_commit)
         else:
-            self._info('Nothing to sync')
+            commits = self._git('log --pretty=format:%H')
+
+        commits = list(commits)[1:]
+
+        return commits, changelists
+
+    def _get_latest_sync_state(self, tag_prefix):
+        git = self._git
+        #todo : parse commit one-by-one, to not retrieve all git history here
+        commits = git('log --pretty=format:%H')
+        # This can fail when current branch doesn't have any commit, as when
+        # specified branch didn't exists. Could be nice to check for that
+        # particular error though, as anyting else would lead to overwrite some
+        # changes by importing in top of some exisitng work
+        if commits:
+            for commit in commits:
+                tag = git('describe --tags --exact-match --match "{}@*" {}',
+                          tag_prefix,
+                          commit)
+                if not tag:
+                    continue
+
+                match = _TAG_RE.match(tag.out())
+
+                if not match:
+                    self._warn('Commit {} seems to have a changelist tag, but'
+                               't\'s format is incorrect. This commit will be '
+                               'considered as a git-side change.')
+                    continue
+
+                changelist = match.group('changelist')
+                return commit, changelist
+
+        return None, None
 
     def _get_perforce_changes(self, changelist):
         changelists = self._p4('changes -l "{}/...@{},#head"',
@@ -131,7 +201,6 @@ class Pergit(object):
 
         return reversed(changelists)
 
-    _TAG_RE = re.compile(r'^.*@(?P<change>\d+)')
     def _get_git_changes(self, tag_prefix):
         git = self._git
         commits = git('log --pretty=format:%H')

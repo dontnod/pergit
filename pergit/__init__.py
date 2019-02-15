@@ -25,6 +25,9 @@ import logging
 
 import pergit._implementation
 
+from ._implementation import CONFLICT_ERASE
+from ._implementation import CONFLICT_FAIL
+from ._implementation import CONFLICT_RESET
 from ._implementation import Pergit
 from ._implementation import PergitError
 
