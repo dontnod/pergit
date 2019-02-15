@@ -21,10 +21,11 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' Git and Perforce call utilities '''
 
+import logging
 import re
 import shlex
 import subprocess
-import logging
+import sys
 
 import pergit
 
@@ -35,10 +36,12 @@ class VCSCommand(object):
     def __init__(self, command):
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.debug('Running %s', ' '.join(command))
+        # Todo : encoding is hard coded, we shouldn't do that
         self._result = subprocess.run(command,
                                       check=False,
                                       text=True,
-                                      capture_output=True)
+                                      capture_output=True,
+                                      encoding='cp1252')
         VCSCommand._debug_output(self._result.stderr, '!')
 
     def check(self):

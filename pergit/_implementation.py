@@ -92,7 +92,7 @@ class Pergit(object):
                    branch,
                    changelist,
                    tag_prefix=None,
-                   conflict_handling=ON_CONFLICT_FAIL):
+                   on_conflict=ON_CONFLICT_FAIL):
         ''' Runs the import command '''
         git = self._git
 
@@ -107,22 +107,23 @@ class Pergit(object):
                                                           sync_changelist)
 
         if perforce_changes and git_changes:
-            if conflict_handling == ON_CONFLICT_FAIL:
+            if on_conflict == ON_CONFLICT_FAIL:
                 # todo : explain on conflict handling
                 self._error(_('You have changes both from P4 and git side, '
                               'refusing to sync'))
             git_changes = []
-            if conflict_handling == ON_CONFLICT_RESET:
+            if on_conflict == ON_CONFLICT_RESET:
                 git('reset --mixed {}', sync_commit)
-            elif conflict_handling == ON_CONFLICT_ERASE:
+            elif on_conflict == ON_CONFLICT_ERASE:
                 pass # Nothing to to, will import on top of existing branch
             else:
                 assert False, 'Not implemented'
 
         if perforce_changes:
             assert not git_changes
+            user_cache = {}
             for change in perforce_changes:
-                self._import_changelist(change)
+                self._import_changelist(change, user_cache)
                 self._tag_commit(tag_prefix, change)
         elif git_changes:
             assert not perforce_changes
@@ -199,7 +200,7 @@ class Pergit(object):
 
         return reversed(changelists)
 
-    def _import_changelist(self, change):
+    def _import_changelist(self, change, user_cache):
         p4 = self._p4
         git = self._git
         self._info(_('Syncing then committing changelist %s : %s'),
@@ -211,7 +212,26 @@ class Pergit(object):
 
         # Commit event if there are no changes, to keep P4 C.L description
         # and corresponding tag in git history
-        git('commit --allow-empty -m "{}"', description).check()
+        author = self._get_author(change, user_cache)
+        git('commit --allow-empty --author "{}" -m "{}"',
+            author,
+            description).check()
+
+    def _get_author(self, change, user_cache):
+        user = change['user']
+        if user in user_cache:
+            return user_cache[user]
+
+        user = self._p4('users {}', user)
+
+        if not user:
+            author = 'Pergit <a@b>'
+        else:
+            assert len(user) == 1
+            user = user[0]
+            author = '%s <%s>' % (user['FullName'], user['Email'])
+
+        return author
 
     def _tag_commit(self, tag_prefix, change):
         git = self._git
