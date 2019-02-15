@@ -49,16 +49,16 @@ def main(argv=None):
 
     try:
         with pergit.Pergit(path=args.path) as impl:
-            conflict_handling = pergit.CONFLICT_FAIL
-            if args.conflict_handling == 'erase':
-                conflict_handling = pergit.CONFLICT_ERASE
-            elif args.conflict_handling == 'reset':
-                conflict_handling = pergit.CONFLICT_RESET
+            on_conflict = pergit.ON_CONFLICT_FAIL
+            if args.on_conflict == 'erase':
+                on_conflict = pergit.ON_CONFLICT_ERASE
+            elif args.on_conflict == 'reset':
+                on_conflict = pergit.ON_CONFLICT_RESET
 
             impl.sychronize(
                 branch=args.branch,
                 changelist=args.changelist,
-                conflict_handling=conflict_handling
+                on_conflict=on_conflict
             )
     except pergit.PergitError as error:
         logger = logging.getLogger(pergit.LOGGER_NAME)
@@ -83,7 +83,7 @@ def _get_parser():
                         help='Prefix for Perforce C.L tags (defaults to branch',
                         default=None)
 
-    parser.add_argument('--conflict-handling',
+    parser.add_argument('--on-conflict',
                         help='What to do when there are change both sides of git and Perforce',
                         choices=['fail', 'reset', 'erase'],
                         default='fail')

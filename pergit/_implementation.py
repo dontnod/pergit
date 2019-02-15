@@ -30,9 +30,9 @@ import pergit.vcs
 _ = gettext.gettext
 _TAG_RE = re.compile(r'^.*@(?P<changelist>\d+)')
 
-CONFLICT_FAIL = 0
-CONFLICT_RESET = 1
-CONFLICT_ERASE = 2
+ON_CONFLICT_FAIL = 0
+ON_CONFLICT_RESET = 1
+ON_CONFLICT_ERASE = 2
 
 class PergitError(Exception):
     ''' Error raised when a command fails '''
@@ -92,7 +92,7 @@ class Pergit(object):
                    branch,
                    changelist,
                    tag_prefix=None,
-                   conflict_handling=CONFLICT_FAIL):
+                   conflict_handling=ON_CONFLICT_FAIL):
         ''' Runs the import command '''
         git = self._git
 
@@ -107,14 +107,14 @@ class Pergit(object):
                                                           sync_changelist)
 
         if perforce_changes and git_changes:
-            if conflict_handling == CONFLICT_FAIL:
+            if conflict_handling == ON_CONFLICT_FAIL:
                 # todo : explain on conflict handling
                 self._error(_('You have changes both from P4 and git side, '
                               'refusing to sync'))
             git_changes = []
-            if conflict_handling == CONFLICT_RESET:
+            if conflict_handling == ON_CONFLICT_RESET:
                 git('reset --mixed {}', sync_commit)
-            elif conflict_handling == CONFLICT_ERASE:
+            elif conflict_handling == ON_CONFLICT_ERASE:
                 pass # Nothing to to, will import on top of existing branch
             else:
                 assert False, 'Not implemented'
