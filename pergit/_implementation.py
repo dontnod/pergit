@@ -266,7 +266,7 @@ class Pergit(object):
             p4('reconcile "{}/..."', root).check()
             p4('submit -d "{}" "{}/..."', description, root).check()
             change = p4('changes -m 1 -s submitted').single_record()
-            self._tag_commit(tag_prefix, change).check()
+            self._tag_commit(tag_prefix, change)
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
