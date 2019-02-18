@@ -17,6 +17,6 @@ only a subdirectory of your Perforce workspace.
 Just run pergit your_target_branch --path /path/to/perforce. If the target
 branch doesn't exists, it will be created.
 
-### Handling conflicts
-A conflict is meant to be changes on both Perforce and git, Pergit doesn't
-support file-level changes.
+### Commits tagging
+Pergit uses lightweight tags to keep track of which C.L correspond to which
+commit.
