@@ -30,6 +30,11 @@ import pergit.vcs
 _ = gettext.gettext
 _TAG_RE = re.compile(r'^.*@(?P<changelist>\d+)')
 
+_MSG_ARGUMENT_NOT_SET = _(
+    'You didn\'t gave {} argument and no previous value was stored in settings '
+    'for the specified  branch. Please run Pergit for this branch at least once'
+    'with this value set as command argument.')
+
 class PergitError(Exception):
     ''' Error raised when a command fails '''
     def __init__(self, message):
@@ -44,8 +49,12 @@ class PergitError(Exception):
 
 class Pergit(object):
     ''' Imports a Perforce depot into a git branch '''
-    def __init__(self, path):
-        self._work_tree = path
+    def __init__(self, branch=None, work_tree=None):
+        if branch is None:
+            branch = pergit.vcs.Git()('rev-parse --abbrev-ref HEAD').out()
+
+        self._branch = branch
+        self._work_tree = self._load_argument('work-tree', work_tree, None)
         self._p4 = pergit.vcs.P4()
         self._git = pergit.vcs.Git(config={'core.fileMode': 'false'},
                                    work_tree=self._work_tree)
@@ -62,6 +71,29 @@ class Pergit(object):
     def _error(self, fmt, *args, **kwargs):
         ''' Logs an error '''
         raise PergitError(fmt.format(*args, **kwargs))
+
+    def _load_argument(self, key, value, default_value):
+        # Can't use self._git, as work_tree may be loaded here, so it may not
+        # be initialized.
+        git = pergit.vcs.Git()
+        branch_key = self._branch.replace('/', '.')
+        config_key = 'pergit.{}.{}'.format(branch_key, key)
+        if value is None:
+            value = git('config {}', config_key)
+            if value:
+                assert value.out()
+                return value.out()
+            if default_value is None:
+                self._error('You didn\'t gave {} argument and no previous'
+                            ' value was stored in settings for the specified '
+                            ' branch. Please run Pergit for this branch at '
+                            ' least once with this value set as command '
+                            ' argument.',
+                            key)
+            value = default_value
+
+        git('config --local {} "{}"', config_key, value).check()
+        return value
 
     def __enter__(self):
         p4_root = self._work_tree + '/...'
@@ -85,16 +117,14 @@ class Pergit(object):
         return self
 
     def sychronize(self,
-                   branch,
                    changelist,
                    tag_prefix=None):
         ''' Runs the import command '''
         git = self._git
 
-        if not tag_prefix:
-            tag_prefix = branch
+        tag_prefix = self._load_argument('tag-prefix', tag_prefix, self._branch)
 
-        git('symbolic-ref HEAD refs/heads/{}', branch)
+        git('symbolic-ref HEAD refs/heads/{}', self._branch)
 
         sync_commit, sync_changelist = self._get_latest_sync_state(tag_prefix)
         git_changes, perforce_changes = self._get_changes(changelist,

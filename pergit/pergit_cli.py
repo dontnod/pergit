@@ -48,9 +48,8 @@ def main(argv=None):
         logging.basicConfig(format=logging_format, level=logging.INFO)
 
     try:
-        with pergit.Pergit(path=args.path) as impl:
+        with pergit.Pergit(branch=args.branch, work_tree=args.work_tree) as impl:
             impl.sychronize(
-                branch=args.branch,
                 changelist=args.changelist,
                 tag_prefix=args.tag_prefix
             )
@@ -61,13 +60,17 @@ def main(argv=None):
 def _get_parser():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('path',
+    parser.add_argument('branch',
+                        help='Branch name where to import changes. Defaults'
+                             'to current branch, will be created if it '
+                             'Doesn\'t exists',
+                        metavar='<git-branch>',
+                        nargs='?',
+                        default=None)
+
+    parser.add_argument('--work-tree',
                         help='Root path of the mapped Perforce repository to sync',
                         metavar='<path>')
-
-    parser.add_argument('branch',
-                        help='Branch name where to import changes (will be created)',
-                        metavar='<git-branch>')
 
     parser.add_argument('--changelist',
                         help='Import changes starting at this revision',

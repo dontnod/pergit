@@ -213,7 +213,8 @@ class Git(_VCS):
         if work_tree:
             command_prefix += ['--work-tree', work_tree]
 
-        for option, value in config.items():
-            command_prefix += ['-c', '%s=%s' % (option, value)]
+        if config:
+            for option, value in config.items():
+                command_prefix += ['-c', '%s=%s' % (option, value)]
 
         super().__init__(GitCommand, command_prefix)
