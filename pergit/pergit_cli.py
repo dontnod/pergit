@@ -49,8 +49,9 @@ def main(argv=None):
 
     try:
         with pergit.Pergit(path=args.path) as impl:
-            on_conflict = pergit.ON_CONFLICT_FAIL
-            if args.on_conflict == 'erase':
+            if args.on_conflict == 'fail':
+                on_conflict = pergit.ON_CONFLICT_FAIL
+            elif args.on_conflict == 'erase':
                 on_conflict = pergit.ON_CONFLICT_ERASE
             elif args.on_conflict == 'reset':
                 on_conflict = pergit.ON_CONFLICT_RESET
