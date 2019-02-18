@@ -133,32 +133,20 @@ class Pergit(object):
 
     def _get_latest_sync_state(self, tag_prefix):
         git = self._git
-        #todo : parse commit one-by-one, to not retrieve all git history here
-        commits = git('log --pretty=format:%H')
-        # This can fail when current branch doesn't have any commit, as when
-        # specified branch didn't exists. Could be nice to check for that
-        # particular error though, as anyting else would lead to overwrite some
-        # changes by importing in top of some exisitng work
-        if commits:
-            for commit in commits:
-                tag = git('describe --tags --exact-match --match "{}@*" {}',
-                          tag_prefix,
-                          commit)
-                if not tag:
-                    continue
+        latest_tag = git('describe --tags --match "{}@*"', tag_prefix)
+        if not latest_tag:
+            return None, None
+        latest_tag = latest_tag.out()
+        match = _TAG_RE.match(latest_tag)
 
-                match = _TAG_RE.match(tag.out())
+        if not match:
+            self._error('Commit {} seems to have a changelist tag, but it\'s'
+                        'format is incorrect.')
 
-                if not match:
-                    self._warn('Commit {} seems to have a changelist tag, but'
-                               't\'s format is incorrect. This commit will be '
-                               'considered as a git-side change.')
-                    continue
+        changelist = match.group('changelist')
+        commit = git('show --pretty=format:%H --no-patch {}', latest_tag)
+        return commit.out(), changelist
 
-                changelist = match.group('changelist')
-                return commit, changelist
-
-        return None, None
 
     def _get_changes(self, changelist, sync_commit, sync_changelist):
         if sync_changelist is None:
@@ -264,7 +252,7 @@ class Pergit(object):
             git('checkout -f --recurse-submodule {}', commit).check()
             git('clean -fd').check()
             p4('reconcile "{}/..."', root).check()
-            #p4('submit -d "{}" "{}/..."', description, root).check()
+            p4('submit -d "{}" "{}/..."', description, root).check()
             change = p4('changes -m 1 -s submitted').single_record()
             self._tag_commit(tag_prefix, change)
 
