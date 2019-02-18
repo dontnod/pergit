@@ -189,7 +189,7 @@ class Pergit(object):
         else:
             commits = self._git('log --pretty=format:%H')
 
-        return commits, changelists
+        return commits[1:], changelists
 
     def _get_perforce_changes(self, changelist):
         changelists = self._p4('changes -l "{}/...@{},#head"',
@@ -264,7 +264,7 @@ class Pergit(object):
             git('checkout -f --recurse-submodule {}', commit).check()
             git('clean -fd').check()
             p4('reconcile "{}/..."', root).check()
-            p4('submit -d "{}" "{}/..."', description, root).check()
+            #p4('submit -d "{}" "{}/..."', description, root).check()
             change = p4('changes -m 1 -s submitted').single_record()
             self._tag_commit(tag_prefix, change)
 
