@@ -49,21 +49,9 @@ def main(argv=None):
 
     try:
         with pergit.Pergit(path=args.path) as impl:
-            if args.on_conflict == 'fail':
-                on_conflict = pergit.ON_CONFLICT_FAIL
-            elif args.on_conflict == 'erase':
-                on_conflict = pergit.ON_CONFLICT_ERASE
-            elif args.on_conflict == 'reset':
-                on_conflict = pergit.ON_CONFLICT_RESET
-            elif args.on_conflict == 'skip':
-                on_conflict = pergit.ON_CONFLICT_SKIP
-            else:
-                assert False
-
             impl.sychronize(
                 branch=args.branch,
                 changelist=args.changelist,
-                on_conflict=on_conflict,
                 tag_prefix=args.tag_prefix
             )
     except pergit.PergitError as error:
@@ -88,11 +76,6 @@ def _get_parser():
     parser.add_argument('--tag-prefix',
                         help='Prefix for Perforce C.L tags (defaults to branch',
                         default=None)
-
-    parser.add_argument('--on-conflict',
-                        help='What to do when there are change both sides of git and Perforce',
-                        choices=['fail', 'reset', 'erase', 'skip'],
-                        default='fail')
 
     parser.add_argument('--verbose',
                         help='Enable verbose mode',
