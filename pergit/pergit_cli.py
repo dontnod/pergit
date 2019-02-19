@@ -49,10 +49,8 @@ def main(argv=None):
 
     try:
         with pergit.Pergit(branch=args.branch, work_tree=args.work_tree) as impl:
-            impl.sychronize(
-                changelist=args.changelist,
-                tag_prefix=args.tag_prefix
-            )
+            impl.sychronize(changelist=args.changelist,
+                            tag_prefix=args.tag_prefix)
     except pergit.PergitError as error:
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.error(error)

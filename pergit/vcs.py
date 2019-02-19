@@ -27,6 +27,8 @@ import os
 import re
 import shlex
 import subprocess
+import locale
+import sys
 
 import pergit
 
@@ -37,12 +39,12 @@ class VCSCommand(object):
     def __init__(self, command, env):
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.debug('Running %s', ' '.join(command))
-        # Todo : encoding is hard coded, we shouldn't do that
+        encoding = locale.getdefaultlocale()[1]
         self._result = subprocess.run(command,
                                       check=False,
                                       text=True,
                                       capture_output=True,
-                                      encoding='cp1252',
+                                      encoding=encoding,
                                       env=env)
         VCSCommand._debug_output(self._result.stderr, '!')
 
