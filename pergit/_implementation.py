@@ -22,6 +22,7 @@
 ''' pergit commands '''
 import gettext
 import logging
+import os
 import re
 import sys
 
@@ -287,7 +288,9 @@ class Pergit(object):
             self._info(_('Submitting commit %s : %s'), commit[:10], description)
             git('checkout -f --recurse-submodule {}', commit).check()
             git('clean -fd').check()
-            p4('reconcile "{}/..."', root).check()
+
+            with p4.ignore('**/.git'):
+                p4('reconcile "{}/..."', root).check()
 
             if not auto_submit:
                 self._info("Submit ready. Check it and press (s) to submit it.")

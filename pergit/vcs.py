@@ -27,6 +27,7 @@ import os
 import re
 import shlex
 import subprocess
+import tempfile
 import locale
 
 import pergit
@@ -179,6 +180,23 @@ class P4(_VCS):
         if user is not None:
             command_prefix += ['-u', user]
         super().__init__(P4Command, command_prefix)
+
+
+    @contextlib.contextmanager
+    def ignore(self, *patterns):
+        ''' Ignore specified patterns for every calls in a with scope
+            for this P4 instance '''
+        tmp_path = None
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+            for it in patterns:
+                tmp_file.write('%s\n' % it)
+        ignore_env = tmp_path
+        if 'P4IGNORE' in os.environ:
+            ignore_env += os.environ['P4IGNORE']
+        with self.with_env(P4IGNORE=ignore_env):
+            yield
+        os.remove(tmp_path)
 
 class GitCommand(VCSCommand):
     ''' Object representing a git command, containing lines returned by it '''
