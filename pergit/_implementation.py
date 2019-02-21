@@ -22,7 +22,6 @@
 ''' pergit commands '''
 import gettext
 import logging
-import os
 import re
 import sys
 
@@ -285,7 +284,7 @@ class Pergit(object):
         p4('sync "{}/..."', root).check()
         for commit in commits:
             description = git('show -s --pretty=format:%B').out()
-            self._info(_('Submitting commit %s : %s'), commit[:10], description)
+            self._info(_('Preparing commit %s : %s'), commit[:10], description)
             git('checkout -f --recurse-submodule {}', commit).check()
             git('clean -fd').check()
 
@@ -293,12 +292,14 @@ class Pergit(object):
                 p4('reconcile "{}/..."', root).check()
 
             if not auto_submit:
-                self._info("Submit ready. Check it and press (s) to submit it.")
+                self._info('Submit in ready in default changelist.')
+                self._info('Press (s) to submit.')
                 while True:
                     char = sys.stdin.read(1)
                     if char == 's' or char == 'S':
                         break
 
+            self._info('Submitting')
             p4('submit -d "{}" "{}/..."', description, root).check()
             change = p4('changes -m 1 -s submitted').single_record()
             self._tag_commit(tag_prefix, change)
