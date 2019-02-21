@@ -156,7 +156,7 @@ class Pergit(object):
                         'format is incorrect.')
 
         changelist = match.group('changelist')
-        commit = git('show --pretty=format:%H --no-patch {}', latest_tag)
+        commit = git('show --pretty=format:%H --no-patch {}@{}', tag_prefix, changelist)
         return commit.out(), changelist
 
 
@@ -191,8 +191,8 @@ class Pergit(object):
             commits = self._git('log --pretty=format:%H')
 
         if commits:
-            return commits[1:], changelists
-        
+            return commits, changelists
+
         # Happens when branch isn't already created
         return [], changelists
 
