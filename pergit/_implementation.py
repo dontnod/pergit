@@ -118,8 +118,8 @@ class Pergit(object):
 
         # Reverting and cleaning files in order to not commit trash to git
         p4 = self._p4
+        self._info("Preparing Git and Perforce workspaces")
         p4('revert "{}"', p4_root).check()
-        p4('clean "{}"', p4_root).check()
 
         git = self._git
         if not git('rev-parse --is-inside-work-tree'):
