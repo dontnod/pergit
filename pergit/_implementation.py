@@ -181,7 +181,8 @@ class Pergit(object):
         # last_synced_cl is already sync, but when giving --changelist as
         # argument, one would expect that the change range is inclusive
         if changelist == sync_changelist:
-            assert changelists[0]['change'] == sync_changelist
+            assert (changelists[0]['change'] == sync_changelist or
+                    sync_changelist == '0')
             changelists = changelists[1:]
 
         if sync_commit:
@@ -189,7 +190,11 @@ class Pergit(object):
         else:
             commits = self._git('log --pretty=format:%H')
 
-        return commits[1:], changelists
+        if commits:
+            return commits[1:], changelists
+        
+        # Happens when branch isn't already created
+        return [], changelists
 
     def _get_perforce_changes(self, changelist):
         changelists = self._p4('changes -l "{}/...@{},#head"',
