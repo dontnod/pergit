@@ -55,7 +55,8 @@ def main(argv=None):
                            p4_client=args.p4_client,
                            p4_password=args.p4_password) as impl:
             impl.sychronize(changelist=args.changelist,
-                            tag_prefix=args.tag_prefix)
+                            tag_prefix=args.tag_prefix,
+                            auto_submit=args.auto_submit)
     except pergit.PergitError as error:
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.error(error)
@@ -70,6 +71,10 @@ def _get_parser():
                         metavar='<git-branch>',
                         nargs='?',
                         default=None)
+
+    parser.add_argument('--verbose',
+                        help='Enable verbose mode',
+                        action='store_true')
 
     parser.add_argument('--p4-port',
                         help='Perforce server')
@@ -95,8 +100,8 @@ def _get_parser():
                         help='Prefix for Perforce C.L tags (defaults to branch',
                         default=None)
 
-    parser.add_argument('--verbose',
-                        help='Enable verbose mode',
+    parser.add_argument('--auto-submit',
+                        help='Submit without asking for user validation',
                         action='store_true')
 
     return parser

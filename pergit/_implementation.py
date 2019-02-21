@@ -23,6 +23,7 @@
 import gettext
 import logging
 import re
+import sys
 
 import pergit
 import pergit.vcs
@@ -135,7 +136,8 @@ class Pergit(object):
 
     def sychronize(self,
                    changelist,
-                   tag_prefix=None):
+                   tag_prefix=None,
+                   auto_submit=False):
         ''' Runs the import command '''
         git = self._git
 
@@ -156,7 +158,7 @@ class Pergit(object):
             self._import_changes(tag_prefix, perforce_changes)
         elif git_changes:
             assert not perforce_changes
-            self._export_changes(tag_prefix, git_changes)
+            self._export_changes(tag_prefix, git_changes, auto_submit)
         else:
             self._info('Nothing to sync')
 
@@ -274,7 +276,7 @@ class Pergit(object):
 
         git('tag -f {}', tag).check()
 
-    def _export_changes(self, tag_prefix, commits):
+    def _export_changes(self, tag_prefix, commits, auto_submit):
         p4 = self._p4
         git = self._git
         root = self._work_tree
@@ -286,6 +288,14 @@ class Pergit(object):
             git('checkout -f --recurse-submodule {}', commit).check()
             git('clean -fd').check()
             p4('reconcile "{}/..."', root).check()
+
+            if not auto_submit:
+                self._info("Submit ready. Check it and press (s) to submit it.")
+                while True:
+                    char = sys.stdin.read(1)
+                    if char == 's' or char == 'S':
+                        break
+
             p4('submit -d "{}" "{}/..."', description, root).check()
             change = p4('changes -m 1 -s submitted').single_record()
             self._tag_commit(tag_prefix, change)
