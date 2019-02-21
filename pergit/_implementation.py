@@ -49,13 +49,29 @@ class PergitError(Exception):
 
 class Pergit(object):
     ''' Imports a Perforce depot into a git branch '''
-    def __init__(self, branch=None, work_tree=None):
+    def __init__(self,
+                 branch=None,
+                 work_tree=None,
+                 p4_port=None,
+                 p4_user=None,
+                 p4_client=None,
+                 p4_password=None):
         if branch is None:
             branch = pergit.vcs.Git()('rev-parse --abbrev-ref HEAD').out()
 
         self._branch = branch
         self._work_tree = self._load_argument('work-tree', work_tree, None)
-        self._p4 = pergit.vcs.P4()
+
+        p4_port = self._load_argument('p4-port', p4_port, None, True)
+        p4_client = self._load_argument('p4-client', p4_client, None, True)
+        p4_user = self._load_argument('p4-user', p4_user, None, True)
+        p4_password = self._load_argument('p4-password', p4_password, None, True)
+
+        self._p4 = pergit.vcs.P4(port=p4_port,
+                                 user=p4_user,
+                                 client=p4_client,
+                                 password=p4_password)
+
         self._git = pergit.vcs.Git(config={'core.fileMode': 'false'},
                                    work_tree=self._work_tree)
         self._previous_head = None
@@ -72,7 +88,7 @@ class Pergit(object):
         ''' Logs an error '''
         raise PergitError(fmt.format(*args, **kwargs))
 
-    def _load_argument(self, key, value, default_value):
+    def _load_argument(self, key, value, default_value, allow_none=False):
         # Can't use self._git, as work_tree may be loaded here, so it may not
         # be initialized.
         git = pergit.vcs.Git()
@@ -83,7 +99,7 @@ class Pergit(object):
             if value:
                 assert value.out()
                 return value.out()
-            if default_value is None:
+            if default_value is None and not allow_none:
                 self._error('You didn\'t gave {} argument and no previous'
                             ' value was stored in settings for the specified '
                             ' branch. Please run Pergit for this branch at '
@@ -92,7 +108,8 @@ class Pergit(object):
                             key)
             value = default_value
 
-        git('config --local {} "{}"', config_key, value).check()
+        if value is not None:
+            git('config --local {} "{}"', config_key, value).check()
         return value
 
     def __enter__(self):

@@ -48,7 +48,12 @@ def main(argv=None):
         logging.basicConfig(format=logging_format, level=logging.INFO)
 
     try:
-        with pergit.Pergit(branch=args.branch, work_tree=args.work_tree) as impl:
+        with pergit.Pergit(branch=args.branch,
+                           work_tree=args.work_tree,
+                           p4_port=args.p4_port,
+                           p4_user=args.p4_user,
+                           p4_client=args.p4_client,
+                           p4_password=args.p4_password) as impl:
             impl.sychronize(changelist=args.changelist,
                             tag_prefix=args.tag_prefix)
     except pergit.PergitError as error:
@@ -65,6 +70,18 @@ def _get_parser():
                         metavar='<git-branch>',
                         nargs='?',
                         default=None)
+
+    parser.add_argument('--p4-port',
+                        help='Perforce server')
+
+    parser.add_argument('--p4-user',
+                        help='Perforce user')
+
+    parser.add_argument('--p4-client',
+                        help='Perforce workspace')
+
+    parser.add_argument('--p4-password',
+                        help='Perforce password')
 
     parser.add_argument('--work-tree',
                         help='Root path of the mapped Perforce repository to sync',

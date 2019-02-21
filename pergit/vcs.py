@@ -28,7 +28,6 @@ import re
 import shlex
 import subprocess
 import locale
-import sys
 
 import pergit
 
@@ -169,7 +168,7 @@ class P4Command(VCSCommand):
 
 class P4(_VCS):
     ''' Wrapper for P4 calls '''
-    def __init__(self, client=None, password=None, port=None, user=None):
+    def __init__(self, port=None, user=None, client=None, password=None):
         command_prefix = ['p4', '-z', 'tag']
         if client is not None:
             command_prefix += ['-c', client]
