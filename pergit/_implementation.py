@@ -210,7 +210,7 @@ class Pergit(object):
             commits = self._git('log --pretty=format:%H')
 
         if commits:
-            return commits, changelists
+            return list(commits), changelists
 
         # Happens when branch isn't already created
         return [], changelists
