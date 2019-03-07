@@ -21,9 +21,10 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' gitp4 entry '''
 
-import sys
 import argparse
 import logging
+import subprocess
+import sys
 
 import pergit
 
@@ -57,9 +58,16 @@ def main(argv=None):
             impl.sychronize(changelist=args.changelist,
                             tag_prefix=args.tag_prefix,
                             auto_submit=args.auto_submit)
+
+            return 0
     except pergit.PergitError as error:
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.error(error)
+    except subprocess.CalledProcessError as error:
+        logger = logging.getLogger(pergit.LOGGER_NAME)
+        logger.error('Error while runnig command "%s" :\n%s', ' '.join(error.cmd), error.stderr)
+
+    return -1
 
 def _get_parser():
     parser = argparse.ArgumentParser()
