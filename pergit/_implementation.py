@@ -199,7 +199,7 @@ class Pergit(object):
 
         # last_synced_cl is already sync, but when giving --changelist as
         # argument, one would expect that the change range is inclusive
-        if changelist == sync_changelist:
+        if changelist == sync_changelist and changelists:
             assert (changelists[0]['change'] == sync_changelist or
                     sync_changelist == '0')
             changelists = changelists[1:]
