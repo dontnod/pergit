@@ -149,7 +149,6 @@ class Pergit(object):
         git_changes, perforce_changes = self._get_changes(changelist,
                                                           sync_commit,
                                                           sync_changelist)
-
         if perforce_changes and git_changes:
             self._error(_('You have changes both from P4 and git side, '
                           'refusing to sync'))
@@ -210,7 +209,9 @@ class Pergit(object):
             commits = self._git('log --pretty=format:%H')
 
         if commits:
-            return list(commits), changelists
+            commits = list(commits)
+            commits.reverse()
+            return commits, changelists
 
         # Happens when branch isn't already created
         return [], changelists
@@ -283,9 +284,9 @@ class Pergit(object):
         self._info(_('Syncing perforce'))
         p4('sync "{}/..."', root).check()
         for commit in commits:
+            git('checkout -f --recurse-submodule {}', commit).check()
             description = git('show -s --pretty=format:%B').out()
             self._info(_('Preparing commit %s : %s'), commit[:10], description)
-            git('checkout -f --recurse-submodule {}', commit).check()
             git('clean -fd').check()
 
             with p4.ignore('**/.git'):
