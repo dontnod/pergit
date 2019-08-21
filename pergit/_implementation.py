@@ -225,7 +225,7 @@ class Pergit(object):
 
     def _import_changes(self, tag_prefix, changes):
         info = self._p4('info').single_record()
-        date_re = r'\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} ([+|-]\d{4}) .*$'
+        date_re = r'\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} ([+|-]\d{4}).*$'
         date_re = re.compile(date_re)
         utc_offset = date_re.match(info['serverDate']).group(1)
         user_cache = {}
