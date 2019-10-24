@@ -1,10 +1,13 @@
 # Pergit : Perforce / Git synchronization script
-## Installation
+## Overview
 Pergit is a git / Perforce synchronization script. Unlike git-p4 it's intended
 to be used in a merge-based workflow, rather than a rebase one. Pergit will
 maintain a branch synchronized with Perforce, using tags to mark synchronized
 Perforce changelist. You'll can merge from or to this branch prior to run
 Pergit in order to synchronize Perforce.
+
+## Installation
+Just run pip install git+https://github.com/dontnod/pergit
 
 ## Preparing the workspace
 Pergit will need a Perforce workspace configured for both pulling and pushing
