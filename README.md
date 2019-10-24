@@ -24,6 +24,8 @@ If you have change in both Perforce and Git, Pergit will refuse to synchronize.
 That's why you should have a branch dedicated to perforce synchronization, so
 you can import Perforce changes before merging the git changes then sending them
 to Perforce.
+After you synchronized the repository, don't forget to issue a git push --tags so
+the synchronization tags are sent to the git repository (see below).
 
 ### Commits tagging
 Pergit uses lightweight tags to keep track of which C.L correspond to which
