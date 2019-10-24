@@ -46,7 +46,8 @@ class VCSCommand(object):
                                       capture_output=True,
                                       encoding=encoding,
                                       env=env)
-        VCSCommand._debug_output(self._result.stderr, '!')
+        VCSCommand._debug_output(self._result.stdout, '--')
+        VCSCommand._debug_output(self._result.stderr, '!!')
 
     def check(self):
         ''' Raises CalledProcessError if the command failed '''
@@ -228,9 +229,6 @@ class Git(_VCS):
 
         if git_dir is not None:
             command_prefix += ['--git-dir', git_dir]
-
-        if work_tree:
-            command_prefix += ['--work-tree', work_tree]
 
         if config:
             for option, value in config.items():

@@ -50,7 +50,6 @@ def main(argv=None):
 
     try:
         with pergit.Pergit(branch=args.branch,
-                           work_tree=args.work_tree,
                            p4_port=args.p4_port,
                            p4_user=args.p4_user,
                            p4_client=args.p4_client,
@@ -95,10 +94,6 @@ def _get_parser():
 
     parser.add_argument('--p4-password',
                         help='Perforce password')
-
-    parser.add_argument('--work-tree',
-                        help='Root path of the mapped Perforce repository to sync',
-                        metavar='<path>')
 
     parser.add_argument('--changelist',
                         help='Import changes starting at this revision',

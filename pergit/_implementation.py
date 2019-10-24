@@ -52,16 +52,17 @@ class Pergit(object):
     ''' Imports a Perforce depot into a git branch '''
     def __init__(self,
                  branch=None,
-                 work_tree=None,
                  p4_port=None,
                  p4_user=None,
                  p4_client=None,
                  p4_password=None):
+        self._git = pergit.vcs.Git(config={'core.fileMode': 'false'})
+
         if branch is None:
-            branch = pergit.vcs.Git()('rev-parse --abbrev-ref HEAD').out()
+            branch = self._git('rev-parse --abbrev-ref HEAD').out()
 
         self._branch = branch
-        self._work_tree = self._load_argument('work-tree', work_tree, None)
+        self._work_tree = pergit.vcs.Git()('rev-parse --show-toplevel').out()
 
         p4_port = self._load_argument('p4-port', p4_port, None, True)
         p4_client = self._load_argument('p4-client', p4_client, None, True)
@@ -73,8 +74,6 @@ class Pergit(object):
                                  client=p4_client,
                                  password=p4_password)
 
-        self._git = pergit.vcs.Git(config={'core.fileMode': 'false'},
-                                   work_tree=self._work_tree)
         self._previous_head = None
 
     def _info(self, fmt, *args, **kwargs):
@@ -90,9 +89,7 @@ class Pergit(object):
         raise PergitError(fmt.format(*args, **kwargs))
 
     def _load_argument(self, key, value, default_value, allow_none=False):
-        # Can't use self._git, as work_tree may be loaded here, so it may not
-        # be initialized.
-        git = pergit.vcs.Git()
+        git = self._git
         branch_key = self._branch.replace('/', '.')
         config_key = 'pergit.{}.{}'.format(branch_key, key)
         if value is None:
@@ -284,7 +281,7 @@ class Pergit(object):
         self._info(_('Syncing perforce'))
         p4('sync "{}/..."', root).check()
         for commit in commits:
-            git('checkout -f --recurse-submodule {}', commit).check()
+            git('checkout -f --recurse-submodules {}', commit).check()
             description = git('show -s --pretty=format:%B').out()
             self._info(_('Preparing commit %s : %s'), commit[:10], description)
             git('clean -fd').check()
