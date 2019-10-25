@@ -50,6 +50,7 @@ def main(argv=None):
 
     try:
         with pergit.Pergit(branch=args.branch,
+                           squash_commits=args.squash_commits,
                            p4_port=args.p4_port,
                            p4_user=args.p4_user,
                            p4_client=args.p4_client,
@@ -96,7 +97,8 @@ def _get_parser():
                         help='Perforce password')
 
     parser.add_argument('--squash-commits',
-                        help='Submits all git commits in one changelist, rather than one commit per changelist')
+                        help='Submits all git commits in one changelist, rather than one commit per changelist',
+                        action='store_true')
 
     parser.add_argument('--changelist',
                         help='Import changes starting at this revision',

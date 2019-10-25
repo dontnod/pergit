@@ -310,8 +310,9 @@ class Pergit(object):
 
         assert(any(commits))
         if self._squash_commits:
-            desc_command = 'show -s --pretty-format:"%h : %B" %s'
-            description = [git(desc_command % it) for it in commits]
+            desc_command = 'show -s \'--pretty=format:%%h : %%B\' %s'
+            description = [git(desc_command % it).out() for it in commits]
+            description.reverse()
             description = '\n'.join(description)
             self._export_change(tag_prefix, commits[-1], description, auto_submit)
         else:
