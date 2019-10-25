@@ -95,6 +95,9 @@ def _get_parser():
     parser.add_argument('--p4-password',
                         help='Perforce password')
 
+    parser.add_argument('--squash-commits',
+                        help='Submits all git commits in one changelist, rather than one commit per changelist')
+
     parser.add_argument('--changelist',
                         help='Import changes starting at this revision',
                         default=None)

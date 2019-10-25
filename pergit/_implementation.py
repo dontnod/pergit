@@ -52,6 +52,7 @@ class Pergit(object):
     ''' Imports a Perforce depot into a git branch '''
     def __init__(self,
                  branch=None,
+                 squash_commits=False,
                  p4_port=None,
                  p4_user=None,
                  p4_client=None,
@@ -62,6 +63,7 @@ class Pergit(object):
             branch = self._git('rev-parse --abbrev-ref HEAD').out()
 
         self._branch = branch
+        self._squash_commits = squash_commits
         self._work_tree = pergit.vcs.Git()('rev-parse --show-toplevel').out()
 
         p4_port = self._load_argument('p4-port', p4_port, None, True)
@@ -274,33 +276,48 @@ class Pergit(object):
 
         git('tag -f {}', tag).check()
 
+    def _export_change(self, tag_prefix, commit, description, auto_submit):
+        git = self._git
+        p4 = self._p4
+        root = self._work_tree
+
+        git('checkout -f --recurse-submodules {}', commit).check()
+        self._info(_('Preparing commit %s : %s'), commit[:10], description)
+        git('clean -fd').check()
+
+        with p4.ignore('**/.git'):
+            p4('reconcile "{}/..."', root).check()
+
+        if not auto_submit:
+            self._info('Submit in ready in default changelist.')
+            self._info('Press (s) to submit.')
+            while True:
+                char = sys.stdin.read(1)
+                if char == 's' or char == 'S':
+                    break
+
+        self._info('Submitting')
+        p4('submit -d "{}" "{}/..."', description, root).check()
+        change = p4('changes -m 1 -s submitted').single_record()
+        self._tag_commit(tag_prefix, change)
+
     def _export_changes(self, tag_prefix, commits, auto_submit):
         p4 = self._p4
         git = self._git
         root = self._work_tree
         self._info(_('Syncing perforce'))
         p4('sync "{}/..."', root).check()
-        for commit in commits:
-            git('checkout -f --recurse-submodules {}', commit).check()
-            description = git('show -s --pretty=format:%B').out()
-            self._info(_('Preparing commit %s : %s'), commit[:10], description)
-            git('clean -fd').check()
 
-            with p4.ignore('**/.git'):
-                p4('reconcile "{}/..."', root).check()
-
-            if not auto_submit:
-                self._info('Submit in ready in default changelist.')
-                self._info('Press (s) to submit.')
-                while True:
-                    char = sys.stdin.read(1)
-                    if char == 's' or char == 'S':
-                        break
-
-            self._info('Submitting')
-            p4('submit -d "{}" "{}/..."', description, root).check()
-            change = p4('changes -m 1 -s submitted').single_record()
-            self._tag_commit(tag_prefix, change)
+        assert(any(commits))
+        if self._squash_commits:
+            desc_command = 'show -s --pretty-format:"%h : %B" %s'
+            description = [git(desc_command % it) for it in commits]
+            description = '\n'.join(description)
+            self._export_change(tag_prefix, commits[-1], description, auto_submit)
+        else:
+            for commit in commits:
+                description = git('show -s --pretty=format:%B').out()
+                self._export_change(tag_prefix, commit, description, auto_submit)
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
