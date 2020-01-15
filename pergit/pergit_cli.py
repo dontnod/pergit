@@ -51,6 +51,7 @@ def main(argv=None):
     try:
         with pergit.Pergit(branch=args.branch,
                            squash_commits=args.squash_commits,
+                           strip_comments=args.strip_comments,
                            p4_port=args.p4_port,
                            p4_user=args.p4_user,
                            p4_client=args.p4_client,
@@ -110,6 +111,10 @@ def _get_parser():
 
     parser.add_argument('--auto-submit',
                         help='Submit without asking for user validation',
+                        action='store_true')
+
+    parser.add_argument('--strip-comments',
+                        help='Remove every live leaded by "#" from the log',
                         action='store_true')
 
     return parser

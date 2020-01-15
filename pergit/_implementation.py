@@ -53,6 +53,7 @@ class Pergit(object):
     def __init__(self,
                  branch=None,
                  squash_commits=False,
+                 strip_comments=False,
                  p4_port=None,
                  p4_user=None,
                  p4_client=None,
@@ -64,6 +65,7 @@ class Pergit(object):
 
         self._branch = branch
         self._squash_commits = squash_commits
+        self._strip_comments = strip_comments
         self._work_tree = pergit.vcs.Git()('rev-parse --show-toplevel').out()
 
         p4_port = self._load_argument('p4-port', p4_port, None, True)
@@ -301,6 +303,13 @@ class Pergit(object):
         change = p4('changes -m 1 -s submitted').single_record()
         self._tag_commit(tag_prefix, change)
 
+    def _strip_description_comments(self, description):
+        if self._strip_comments:
+            stripped = [ ln for ln in description.splitlines() if not (len(ln) == 0 or ln.strip().startswith('#')) ]
+            return '\n'.join(stripped)
+        else:
+            return description
+
     def _export_changes(self, tag_prefix, commits, auto_submit):
         p4 = self._p4
         git = self._git
@@ -310,14 +319,16 @@ class Pergit(object):
 
         assert(any(commits))
         if self._squash_commits:
-            desc_command = 'show -s \'--pretty=format:%%h : %%B\' %s'
+            desc_command = 'show -s --pretty=format:\'%%s <%%an@%%h>%%n%%b\' %s'
             description = [git(desc_command % it).out() for it in commits]
             description.reverse()
             description = '\n'.join(description)
+            description = self._strip_description_comments(description)
             self._export_change(tag_prefix, commits[-1], description, auto_submit)
         else:
             for commit in commits:
-                description = git('show -s --pretty=format:%B').out()
+                description = git('show -s --pretty=format:\'%s <%an@%h>%n%b\' ').out()
+                description = self._strip_description_comments(description)
                 self._export_change(tag_prefix, commit, description, auto_submit)
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
