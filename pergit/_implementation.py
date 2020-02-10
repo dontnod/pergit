@@ -323,6 +323,8 @@ class Pergit(object):
             description = [git(desc_command % it).out() for it in commits]
             description.reverse()
             description = '\n'.join(description)
+            description = description.replace("'", "\\'")
+            description = description.replace('"', '\\"')
             description = self._strip_description_comments(description)
             self._export_change(tag_prefix, commits[-1], description, auto_submit)
         else:
