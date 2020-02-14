@@ -32,7 +32,7 @@ import locale
 
 import pergit
 
-P4_FIELD_RE = re.compile(r'^... (?P<key>\w+) (?P<value>.*)$')
+P4_FIELD_RE = re.compile(r'^\.\.\. (?P<key>\w+) (?P<value>.*)$')
 
 class VCSCommand(object):
     ''' Object representing a git or perforce commmand '''
@@ -147,6 +147,8 @@ class P4Command(VCSCommand):
             else:
                 next_key = match.group('key')
                 next_value = match.group('value')
+
+                print('+++++ PARSE P4: %s -> %s' % (next_key, next_value))
 
                 if current_key:
                     assert current_key is not None
