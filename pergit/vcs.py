@@ -148,8 +148,6 @@ class P4Command(VCSCommand):
                 next_key = match.group('key')
                 next_value = match.group('value')
 
-                print('+++++ PARSE P4: %s -> %s' % (next_key, next_value))
-
                 if current_key:
                     assert current_key is not None
                     assert current_value is not None
