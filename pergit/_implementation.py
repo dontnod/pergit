@@ -298,7 +298,6 @@ class Pergit(object):
         git('clean -fd').check()
 
         with p4.ignore('**/.git'):
-            p4('reconcile -n "{}/..."', root).out()
             p4('reconcile "{}/..."', root).out()
 
         if not auto_submit:
