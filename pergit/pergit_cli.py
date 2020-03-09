@@ -58,7 +58,8 @@ def main(argv=None):
                            p4_password=args.p4_password) as impl:
             impl.sychronize(changelist=args.changelist,
                             tag_prefix=args.tag_prefix,
-                            auto_submit=args.auto_submit)
+                            auto_submit=args.auto_submit,
+                            auto_push=args.auto_push)
 
             return 0
     except pergit.PergitError as error:
@@ -110,7 +111,11 @@ def _get_parser():
                         default=None)
 
     parser.add_argument('--auto-submit',
-                        help='Submit without asking for user validation',
+                        help='Submit to perforce server without asking for user validation',
+                        action='store_true')
+
+    parser.add_argument('--auto-push',
+                        help='Push to git remote without asking for user validation',
                         action='store_true')
 
     parser.add_argument('--strip-comments',

@@ -28,6 +28,8 @@ import sys
 import pergit
 import pergit.vcs
 
+import os
+
 _ = gettext.gettext
 _TAG_RE = re.compile(r'^.*@(?P<changelist>\d+)')
 
@@ -67,6 +69,9 @@ class Pergit(object):
         self._squash_commits = squash_commits
         self._strip_comments = strip_comments
         self._work_tree = pergit.vcs.Git()('rev-parse --show-toplevel').out()
+        # dirty hack to prevent bad behavior whith msys2 / windows
+        if os.name == 'nt':
+            self._work_tree = re.sub('^/(.)/', r'\1:/', self._work_tree)
 
         p4_port = self._load_argument('p4-port', p4_port, None, True)
         p4_client = self._load_argument('p4-client', p4_client, None, True)
@@ -138,7 +143,8 @@ class Pergit(object):
     def sychronize(self,
                    changelist,
                    tag_prefix=None,
-                   auto_submit=False):
+                   auto_submit=False,
+                   auto_push=False):
         ''' Runs the import command '''
         git = self._git
 
@@ -158,7 +164,7 @@ class Pergit(object):
             self._import_changes(tag_prefix, perforce_changes)
         elif git_changes:
             assert not perforce_changes
-            self._export_changes(tag_prefix, git_changes, auto_submit)
+            self._export_changes(tag_prefix, git_changes, auto_submit, auto_push)
         else:
             self._info('Nothing to sync')
 
@@ -269,17 +275,21 @@ class Pergit(object):
 
         return author
 
-    def _tag_commit(self, tag_prefix, change):
+    def _tag_commit(self, tag_prefix, change, auto_push):
         git = self._git
         tag = '{}@{}'.format(tag_prefix, change['change'])
 
         if git('tag -l {}', tag).out():
             self._warn(_('Tag %s already existed, it will be replaced.'), tag)
 
-        git('tag -f {}', tag).check()
+        git('tag -f {}', tag).out()
+        if auto_push:
+            self._info('Pushing commits and tags...')
+            git('push --tags').out()
 
-    def _export_change(self, tag_prefix, commit, description, auto_submit):
-        git = self._git
+    def _export_change(self, tag_prefix, commit, description, auto_submit, auto_push):
+        # git = self._git
+        git = pergit.vcs.Git()
         p4 = self._p4
         root = self._work_tree
 
@@ -288,7 +298,8 @@ class Pergit(object):
         git('clean -fd').check()
 
         with p4.ignore('**/.git'):
-            p4('reconcile "{}/..."', root).check()
+            p4('reconcile -n "{}/..."', root).out()
+            p4('reconcile "{}/..."', root).out()
 
         if not auto_submit:
             self._info('Submit in ready in default changelist.')
@@ -299,9 +310,9 @@ class Pergit(object):
                     break
 
         self._info('Submitting')
-        p4('submit -d "{}" "{}/..."', description, root).check()
+        p4('submit -d "{}" "{}/..."', description, root).out()
         change = p4('changes -m 1 -s submitted').single_record()
-        self._tag_commit(tag_prefix, change)
+        self._tag_commit(tag_prefix, change, auto_push)
 
     def _strip_description_comments(self, description):
         if self._strip_comments:
@@ -310,7 +321,7 @@ class Pergit(object):
         else:
             return description
 
-    def _export_changes(self, tag_prefix, commits, auto_submit):
+    def _export_changes(self, tag_prefix, commits, auto_submit, auto_push):
         p4 = self._p4
         git = self._git
         root = self._work_tree
@@ -326,12 +337,12 @@ class Pergit(object):
             description = description.replace("'", "\\'")
             description = description.replace('"', '\\"')
             description = self._strip_description_comments(description)
-            self._export_change(tag_prefix, commits[-1], description, auto_submit)
+            self._export_change(tag_prefix, commits[-1], description, auto_submit, auto_push)
         else:
             for commit in commits:
                 description = git('show -s --pretty=format:\'%s <%an@%h>%n%b\' ').out()
                 description = self._strip_description_comments(description)
-                self._export_change(tag_prefix, commit, description, auto_submit)
+                self._export_change(tag_prefix, commit, description, auto_submit, auto_push)
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
