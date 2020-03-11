@@ -285,7 +285,8 @@ class Pergit(object):
         git('tag -f {}', tag).out()
         if auto_push:
             self._info('Pushing commits and tags...')
-            git('push --tags').out()
+            git('push --verbose').out()
+            git('push --tags --verbose').out()
 
     def _export_change(self, tag_prefix, commit, description, auto_submit, auto_push):
         # git = self._git
