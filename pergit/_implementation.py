@@ -64,8 +64,10 @@ class Pergit(object):
 
         if branch is None:
             branch = self._git('rev-parse --abbrev-ref HEAD').out()
+        remote = self._git('remote show').out()
 
         self._branch = branch
+        self._remote = remote
         self._squash_commits = squash_commits
         self._strip_comments = strip_comments
         self._work_tree = pergit.vcs.Git()('rev-parse --show-toplevel').out()
@@ -285,8 +287,8 @@ class Pergit(object):
         git('tag -f {}', tag).out()
         if auto_push:
             self._info('Pushing commits and tags...')
-            git('push --verbose').out()
-            git('push --tags --verbose').out()
+            git('push --verbose %s HEAD:%s' % (self._remote, self._branch)).out()
+            git('push --verbose --tags ').out()
 
     def _export_change(self, tag_prefix, commit, description, auto_submit, auto_push):
         # git = self._git
