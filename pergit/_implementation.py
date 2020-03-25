@@ -81,9 +81,14 @@ class Pergit(object):
         p4_password = self._load_argument('p4-password', p4_password, None, True)
 
         self._p4 = pergit.vcs.P4(port=p4_port,
-                                 user=p4_user,
+                                 user='l.cahour',
                                  client=p4_client,
                                  password=p4_password)
+        # BB hack
+        self._p4_submit = pergit.vcs.P4(port=p4_port,
+                                        user='l.cahour',
+                                        client=p4_client,
+                                        password=p4_password)
 
         self._previous_head = None
 
@@ -278,7 +283,8 @@ class Pergit(object):
         return author
 
     def _tag_commit(self, tag_prefix, change, auto_push):
-        git = self._git
+        # git = self._git
+        git = git = pergit.vcs.Git()
         tag = '{}@{}'.format(tag_prefix, change['change'])
 
         if git('tag -l {}', tag).out():
@@ -287,8 +293,9 @@ class Pergit(object):
         git('tag -f {}', tag).out()
         if auto_push:
             self._info('Pushing commits and tags...')
+            # we're pushing head 
             git('push --verbose %s HEAD:%s' % (self._remote, self._branch)).out()
-            git('push --verbose --tags ').out()
+            git('push --tags --verbose').out()
 
     def _export_change(self, tag_prefix, commit, description, auto_submit, auto_push):
         # git = self._git
@@ -301,18 +308,25 @@ class Pergit(object):
         git('clean -fd').check()
 
         with p4.ignore('**/.git'):
-            p4('reconcile "{}/..."', root).out()
+            if not auto_submit: # buildbot hack
+                p4('reconcile -n "{}/..."', root).out()
+            else:
+                p4('reconcile "{}/..."', root).out()
 
         if not auto_submit:
             self._info('Submit in ready in default changelist.')
-            self._info('Press (s) to submit.')
+            self._info('Buildbot stop - no submit / push')
+            self._info('Git cmd --> git push --verbose %s HEAD:%s' % (self._remote, self._branch))
+            # buildbot hack
+            return True
             while True:
                 char = sys.stdin.read(1)
                 if char == 's' or char == 'S':
                     break
 
         self._info('Submitting')
-        p4('submit -d "{}" "{}/..."', description, root).out()
+        p4_submit = self._p4_submit
+        p4_submit('submit -d "{}" "{}/..."', description, root).out()
         change = p4('changes -m 1 -s submitted').single_record()
         self._tag_commit(tag_prefix, change, auto_push)
 
