@@ -297,7 +297,7 @@ class Pergit(object):
             git('push --verbose %s HEAD:%s' % (self._remote, self._branch)).out()
             git('push --tags --verbose').out()
 
-    def _export_change(self, tag_prefix, commit, description, auto_submit, auto_push):
+    def _export_change(self, tag_prefix, commit, description, fileset, auto_submit, auto_push):
         # git = self._git
         git = pergit.vcs.Git()
         p4 = self._p4
@@ -307,11 +307,16 @@ class Pergit(object):
         self._info(_('Preparing commit %s : %s'), commit[:10], description)
         git('clean -fd').check()
 
+        # will reconcile everything if the number of files changed is high (command-line length)
+        modified_paths = '"%s/..."' % root
+        if len(fileset) < 100: # limit the scope of reconcile to files modified by Git (should be much faster)
+            modified_paths = ' '.join([ '\"%s/%s\"' % (root, file) for file in fileset ])
+
         with p4.ignore('**/.git'):
             if not auto_submit: # buildbot hack
-                p4('reconcile -n "{}/..."', root).out()
+                p4('reconcile -n {}', modified_paths).out()
             else:
-                p4('reconcile "{}/..."', root).out()
+                p4('reconcile {}', modified_paths).out()
 
         if not auto_submit:
             self._info('Submit in ready in default changelist.')
@@ -326,7 +331,7 @@ class Pergit(object):
 
         self._info('Submitting')
         p4_submit = self._p4_submit
-        p4_submit('submit -d "{}" "{}/..."', description, root).out()
+        p4_submit('submit -d "{}" {}', description, modified_paths).out()
         change = p4('changes -m 1 -s submitted').single_record()
         self._tag_commit(tag_prefix, change, auto_push)
 
@@ -336,6 +341,21 @@ class Pergit(object):
             return '\n'.join(stripped)
         else:
             return description
+
+    def _get_git_fileset(self, commits):
+        assert (len(commits) > 0)
+
+        fileset = None
+        if len(commits) > 1:
+            fileset = self._git('diff --name-only {}..{}', commits[0], commits[-1])
+        else:
+            fileset = self._git('diff --name-only {}~1..{}', commits[0], commits[0])
+
+        if not fileset:
+            self._error('Failed to retrieve git changed fileset for {}..{} range', commits[0], commits[-1])
+
+        fileset = list(fileset)
+        return fileset
 
     def _export_changes(self, tag_prefix, commits, auto_submit, auto_push):
         p4 = self._p4
@@ -353,12 +373,12 @@ class Pergit(object):
             description = description.replace("'", "\\'")
             description = description.replace('"', '\\"')
             description = self._strip_description_comments(description)
-            self._export_change(tag_prefix, commits[-1], description, auto_submit, auto_push)
+            self._export_change(tag_prefix, commits[-1], description, self._get_git_fileset(commits), auto_submit, auto_push)
         else:
             for commit in commits:
                 description = git('show -s --pretty=format:\'%s <%an@%h>%n%b\' ').out()
                 description = self._strip_description_comments(description)
-                self._export_change(tag_prefix, commit, description, auto_submit, auto_push)
+                self._export_change(tag_prefix, commit, description, self._get_git_fileset([commit]), auto_submit, auto_push)
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
