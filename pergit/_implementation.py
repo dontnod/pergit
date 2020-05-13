@@ -81,12 +81,12 @@ class Pergit(object):
         p4_password = self._load_argument('p4-password', p4_password, None, True)
 
         self._p4 = pergit.vcs.P4(port=p4_port,
-                                 user='l.cahour',
+                                 user=p4_user,
                                  client=p4_client,
                                  password=p4_password)
         # BB hack
         self._p4_submit = pergit.vcs.P4(port=p4_port,
-                                        user='l.cahour',
+                                        user=p4_user,
                                         client=p4_client,
                                         password=p4_password)
 

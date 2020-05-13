@@ -90,7 +90,8 @@ def _get_parser():
                         help='Perforce server')
 
     parser.add_argument('--p4-user',
-                        help='Perforce user')
+                        help='Perforce user',
+                        default='l.cahour' ) # change default identity for buildbot, still overridable with command-line
 
     parser.add_argument('--p4-client',
                         help='Perforce workspace')
