@@ -331,7 +331,7 @@ class Pergit(object):
 
         self._info('Submitting')
         p4_submit = self._p4_submit
-        p4_submit('submit -d "{}" "{}"', description, modified_paths).out()
+        p4_submit('submit -d "{}" "{}"', description, root).out()
         change = p4('changes -m 1 -s submitted').single_record()
         self._tag_commit(tag_prefix, change, auto_push)
 
