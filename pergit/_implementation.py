@@ -347,7 +347,7 @@ class Pergit(object):
 
         fileset = None
         if len(commits) > 1:
-            fileset = self._git('diff --name-only {}..{}', commits[0], commits[-1])
+            fileset = self._git('diff --name-only {}~1..{}', commits[0], commits[-1])
         else:
             fileset = self._git('diff --name-only {}~1..{}', commits[0], commits[0])
 
