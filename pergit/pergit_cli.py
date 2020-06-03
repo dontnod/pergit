@@ -55,11 +55,12 @@ def main(argv=None):
                            p4_port=args.p4_port,
                            p4_user=args.p4_user,
                            p4_client=args.p4_client,
-                           p4_password=args.p4_password) as impl:
+                           p4_password=args.p4_password,
+                           simulate=args.simulate,
+                           is_buildbot=args.is_buildbot) as impl:
             impl.sychronize(changelist=args.changelist,
                             tag_prefix=args.tag_prefix,
-                            auto_submit=args.auto_submit,
-                            auto_push=args.auto_push)
+                            auto_submit=args.auto_submit)
 
             return 0
     except pergit.PergitError as error:
@@ -115,13 +116,19 @@ def _get_parser():
                         help='Submit to perforce server without asking for user validation',
                         action='store_true')
 
-    parser.add_argument('--auto-push',
-                        help='Push to git remote without asking for user validation',
-                        action='store_true')
-
     parser.add_argument('--strip-comments',
                         help='Remove every live leaded by "#" from the log',
                         action='store_true')
+
+    parser.add_argument('--simulate',
+                        help='Perform a dry run with no submit nor push',
+                        action='store_true',
+                        default=False)
+
+    parser.add_argument('--is-buildbot',
+                        help='Enable behavior for buildbot',
+                        action='store_true',
+                        default=False)
 
     return parser
 
