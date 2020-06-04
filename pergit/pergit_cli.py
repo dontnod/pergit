@@ -56,8 +56,7 @@ def main(argv=None):
                            p4_user=args.p4_user,
                            p4_client=args.p4_client,
                            p4_password=args.p4_password,
-                           simulate=args.simulate,
-                           is_buildbot=args.is_buildbot) as impl:
+                           simulate=args.simulate) as impl:
             impl.sychronize(changelist=args.changelist,
                             tag_prefix=args.tag_prefix,
                             auto_submit=args.auto_submit)
@@ -91,8 +90,7 @@ def _get_parser():
                         help='Perforce server')
 
     parser.add_argument('--p4-user',
-                        help='Perforce user',
-                        default='l.cahour' ) # change default identity for buildbot, still overridable with command-line
+                        help='Perforce user')
 
     parser.add_argument('--p4-client',
                         help='Perforce workspace')
@@ -122,11 +120,6 @@ def _get_parser():
 
     parser.add_argument('--simulate',
                         help='Perform a dry run with no submit nor push',
-                        action='store_true',
-                        default=False)
-
-    parser.add_argument('--is-buildbot',
-                        help='Enable behavior for buildbot',
                         action='store_true',
                         default=False)
 

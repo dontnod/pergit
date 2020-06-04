@@ -60,10 +60,8 @@ class Pergit(object):
                  p4_user=None,
                  p4_client=None,
                  p4_password=None,
-                 simulate=False,
-                 is_buildbot=False):
+                 simulate=False):
         self.simulate = simulate
-        self.is_buildbot = is_buildbot
         self._git = pergit.vcs.Git(config={'core.fileMode': 'false'})
 
         if branch is None:
@@ -323,7 +321,7 @@ class Pergit(object):
             else:
                 p4('reconcile {}', modified_paths).out()
 
-        if not auto_submit and not self.is_buildbot:
+        if not auto_submit:
             self._info('Submit is ready in default changelist.')
             self._info('Git cmd --> git push --verbose %s HEAD:%s' % (self._remote, self._branch))
             while True:
@@ -331,11 +329,12 @@ class Pergit(object):
                 if char == 's' or char == 'S':
                     break
 
-        self._info('Submitting')
-        p4_submit = self._p4_submit
-        p4_submit('submit -d "{}" "{}/..."', description, root).out()
-        change = p4('changes -m 1 -s submitted').single_record()
-        self._tag_commit(tag_prefix, change)
+        if not self.simulate:
+            self._info('Submitting')
+            p4_submit = self._p4_submit
+            p4_submit('submit -d "{}" "{}/..."', description, root).out()
+            change = p4('changes -m 1 -s submitted').single_record()
+            self._tag_commit(tag_prefix, change)
 
     def _strip_description_comments(self, description):
         if self._strip_comments:
