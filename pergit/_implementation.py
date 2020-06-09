@@ -66,6 +66,9 @@ class Pergit(object):
         self.simulate = simulate
         self._git = pergit.vcs.Git(config={'core.fileMode': 'false'})
 
+        if self.simulate:
+            self._info('*** SIMULATING PERGIT ***')
+
         if branch is None:
             branch = self._git('rev-parse --abbrev-ref HEAD').out()
         remote = self._git('remote show').out()
@@ -350,14 +353,16 @@ class Pergit(object):
 
         fileset = None
         if len(commits) > 1:
-            fileset = self._git('diff --name-only {}~1..{}', commits[0], commits[-1])
+            fileset = self._git('diff --name-status {}~1..{}', commits[0], commits[-1])
         else:
-            fileset = self._git('diff --name-only {}~1..{}', commits[0], commits[0])
+            fileset = self._git('diff --name-status {}~1..{}', commits[0], commits[0])
 
         if not fileset:
             self._error('Failed to retrieve git changed fileset for {}..{} range', commits[0], commits[-1])
 
         fileset = list(fileset)
+        fileset = [file_list.split('\t')[1:] for file_list in fileset]
+        fileset = [file for file_list in fileset for file in file_list]
         return fileset
 
     def _export_changes(self, tag_prefix, commits, auto_submit):
