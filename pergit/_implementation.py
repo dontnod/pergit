@@ -288,7 +288,7 @@ class Pergit(object):
 
         return author
 
-    def _tag_commit(self, tag_prefix, change):
+    def _tag_commit(self, tag_prefix, change, description=None):
         # git = self._git
         git = git = pergit.vcs.Git()
         tag = '{}@{}'.format(tag_prefix, change['change'])
@@ -296,10 +296,16 @@ class Pergit(object):
         if git('tag -l {}', tag).out():
             self._warn(_('Tag %s already existed, it will be replaced.'), tag)
 
-        git('tag -f {}', tag).out()
+        if description is None:
+            # create a lightweight tag without description
+            git('tag -f {}', tag).out()
+        else:
+            # create an annoted tag to write version changelog in description
+            git('tag -f -a {} -m "{}"', tag, description).out()
+
         if not self.simulate:
             self._info('Pushing commits and tags...')
-            # we're pushing head 
+            # we're pushing head
             git('push --verbose %s HEAD:%s' % (self._remote, self._branch)).out()
             git('push --tags --verbose').out()
 
@@ -339,7 +345,7 @@ class Pergit(object):
             p4_submit = self._p4_submit
             p4_submit('submit -d "{}" "{}/..."', description, root).out()
             change = p4('changes -m 1 -s submitted').single_record()
-            self._tag_commit(tag_prefix, change)
+            self._tag_commit(tag_prefix, change, description)
 
     def _strip_description_comments(self, description):
         if self._strip_comments:
