@@ -292,18 +292,19 @@ class Pergit(object):
         # git = self._git
         git = git = pergit.vcs.Git()
         tag = '{}@{}'.format(tag_prefix, change['change'])
-
-        if git('tag -l {}', tag).out():
-            self._warn(_('Tag %s already existed, it will be replaced.'), tag)
-
         if description is None:
             # create a lightweight tag without description
-            git('tag -f {}', tag).out()
+            tag_command = 'tag -f %s' % tag
         else:
             # create an annoted tag to write version changelog in description
-            git('tag -f -a {} -m "{}"', tag, description).out()
+            tag_command = 'tag -f -a %s -m "%s"'%  (tag, description)
 
+        if self.simulate:
+            self._info('SIMULATE :: ' + tag_command)
         if not self.simulate:
+            if git('tag -l {}', tag).out():
+                self._warn(_('Tag %s already existed, it will be replaced.'), tag)
+            git(tag_command).out()
             self._info('Pushing commits and tags...')
             # we're pushing head
             git('push --verbose %s HEAD:%s' % (self._remote, self._branch)).out()
@@ -326,26 +327,27 @@ class Pergit(object):
 
         with p4.ignore('**/.git'):
             if self.simulate:
-                p4('reconcile -n {}', modified_paths).out()
+                # p4('reconcile -n {}', modified_paths).out()
                 self._info('Git cmd --> git push --verbose %s HEAD:%s' % (self._remote, self._branch))
-                return True
+                self._info('SIMULATE :: submit -d "%s" "%s/..."' % (description, root))
             else:
                 p4('reconcile {}', modified_paths).out()
 
-        if not auto_submit:
-            self._info('Submit is ready in default changelist.')
-            self._info('Git cmd --> git push --verbose %s HEAD:%s' % (self._remote, self._branch))
-            while True:
-                char = sys.stdin.read(1)
-                if char == 's' or char == 'S':
-                    break
-
         if not self.simulate:
+            if not auto_submit: # legacy behavior - not for buildbot
+                self._info('Submit is ready in default changelist.')
+                self._info('Git cmd --> git push --verbose %s HEAD:%s' % (self._remote, self._branch))
+                while True:
+                    char = sys.stdin.read(1)
+                    if char == 's' or char == 'S':
+                        break
+
             self._info('Submitting')
             p4_submit = self._p4_submit
             p4_submit('submit -d "{}" "{}/..."', description, root).out()
-            change = p4('changes -m 1 -s submitted').single_record()
-            self._tag_commit(tag_prefix, change, description)
+
+        change = p4('changes -m 1 -s submitted').single_record()
+        self._tag_commit(tag_prefix, change, description)
 
     def _strip_description_comments(self, description):
         if self._strip_comments:
