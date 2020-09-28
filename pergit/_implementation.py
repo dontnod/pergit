@@ -194,7 +194,7 @@ class Pergit(object):
                         'format is incorrect.')
 
         changelist = match.group('changelist')
-        commit = git('show --pretty=format:%H --no-patch {}@{}', tag_prefix, changelist)
+        commit = git('show --pretty=format:%H --no-patch -n1 {}@{}', tag_prefix, changelist)
         return commit.out(), changelist
 
 
