@@ -327,7 +327,7 @@ class Pergit(object):
 
         with p4.ignore('**/.git'):
             if self.simulate:
-                # p4('reconcile -n {}', modified_paths).out()
+                p4('reconcile -n {}', modified_paths).out()
                 self._info('Git cmd --> git push --verbose %s HEAD:%s' % (self._remote, self._branch))
                 self._info('SIMULATE :: submit -d "%s" "%s/..."' % (description, root))
             else:
