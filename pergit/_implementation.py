@@ -305,9 +305,7 @@ class Pergit(object):
             if git('tag -l {}', tag).out():
                 self._warn(_('Tag %s already existed, it will be replaced.'), tag)
             git(tag_command).out()
-            self._info('Pushing commits and tags...')
-            # we're pushing head
-            git('push --verbose %s HEAD:%s' % (self._remote, self._branch)).out()
+            self._info('Pushing tags...')
             git('push --tags --verbose').out()
 
     def _export_change(self, tag_prefix, commit, description, fileset, auto_submit):
@@ -328,7 +326,6 @@ class Pergit(object):
         with p4.ignore('**/.git'):
             if self.simulate:
                 p4('reconcile -n {}', modified_paths).out()
-                self._info('Git cmd --> git push --verbose %s HEAD:%s' % (self._remote, self._branch))
                 self._info('SIMULATE :: submit -d "%s" "%s/..."' % (description, root))
             else:
                 p4('reconcile {}', modified_paths).out()
@@ -336,7 +333,6 @@ class Pergit(object):
         if not self.simulate:
             if not auto_submit: # legacy behavior - not for buildbot
                 self._info('Submit is ready in default changelist.')
-                self._info('Git cmd --> git push --verbose %s HEAD:%s' % (self._remote, self._branch))
                 while True:
                     char = sys.stdin.read(1)
                     if char == 's' or char == 'S':
