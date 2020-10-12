@@ -320,7 +320,7 @@ class Pergit(object):
 
         # will reconcile everything if the number of files changed is high (command-line length)
         modified_paths = '"%s/..."' % root
-        if len(fileset) < 100 and not self.force_full_reconcile: # limit the scope of reconcile to files modified by Git (should be much faster)
+        if fileset and len(fileset) < 100 and not self.force_full_reconcile: # limit the scope of reconcile to files modified by Git (should be much faster)
             modified_paths = ' '.join([ '\"%s/%s\"' % (root, file) for file in fileset ])
 
         with p4.ignore('**/.git'):

@@ -39,7 +39,8 @@ class VCSCommand(object):
     def __init__(self, command, env):
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.debug('Running %s', ' '.join(command))
-        encoding = locale.getdefaultlocale()[1]
+        encoding = locale.getdefaultlocale()[1] # legacy, not in use for buildbot
+        encoding = 'utf-8' # enforce utf-8 to avoid output errors on farmagents
         self._result = subprocess.run(command,
                                       check=False,
                                       text=True,
