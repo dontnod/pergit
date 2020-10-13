@@ -40,22 +40,29 @@ class VCSCommand(object):
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.debug('Running %s', ' '.join(command))
         encoding = locale.getdefaultlocale()[1] # legacy, not in use for buildbot
-        encodings = [('utf-8-sig', 'strict'), # utf-8 with or without BOM
-                     ('cp850', 'strict'), # our actual p4 setting, may change to utf-8 in the future
-                     ('cp850', 'replace'),] # handle output errors if any
-        for encoding, errors in encodings:
-            try:
-                self._result = subprocess.run(command,
-                                              check=False,
-                                              text=True,
-                                              capture_output=True,
-                                              encoding=encoding,
-                                              errors=errors,
-                                              env=env)
-            except IndexError as e: # may crash first with IndexError in _communicate thread in case of UnicodeDecodeError
-                pass
-            except UnicodeDecodeError as e:
-                pass
+        self._result = subprocess.run(command,
+                                      check=False,
+                                      text=True,
+                                      capture_output=True,
+                                      encoding="cp850",
+                                      errors="ignore",
+                                      env=env)
+        # encodings = [('utf-8-sig', 'strict'), # utf-8 with or without BOM
+        #              ('cp850', 'strict'), # our actual p4 setting, may change to utf-8 in the future
+        #              ('cp850', 'replace'),] # handle output errors if any
+        # for encoding, errors in encodings:
+        #     try:
+        #         self._result = subprocess.run(command,
+        #                                       check=False,
+        #                                       text=True,
+        #                                       capture_output=True,
+        #                                       encoding=encoding,
+        #                                       errors=errors,
+        #                                       env=env)
+        #     except IndexError as e: # may crash first with IndexError in _communicate thread in case of UnicodeDecodeError
+        #         pass
+        #     except UnicodeDecodeError as e:
+        #         pass
         VCSCommand._debug_output(self._result.stdout, '--')
         VCSCommand._debug_output(self._result.stderr, '!!')
 
