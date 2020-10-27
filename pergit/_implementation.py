@@ -347,7 +347,9 @@ class Pergit(object):
 
     def _strip_description_comments(self, description):
         if self._strip_comments:
-            stripped = [ ln for ln in description.splitlines() if not (len(ln) == 0 or ln.strip().startswith('#')) ]
+            stripped = [ ln for ln in description.splitlines() if not (len(ln)) == 0 ]
+            if len(stripped) > 1: # Protect against empty descriptions if we have only # message
+                stripped = [ ln for ln in stripped if not ln.strip().startswith('#') ]
             return '\n'.join(stripped)
         else:
             return description
