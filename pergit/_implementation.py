@@ -290,14 +290,14 @@ class Pergit(object):
 
     def _tag_commit(self, tag_prefix, change, description=None):
         # git = self._git
-        git = git = pergit.vcs.Git()
+        git = pergit.vcs.Git()
         tag = '{}@{}'.format(tag_prefix, change['change'])
         if description is None:
             # create a lightweight tag without description
-            tag_command = 'tag -f %s' % tag
+            tag_command = 'tag -f {}'.format(tag)
         else:
             # create an annoted tag to write version changelog in description
-            tag_command = 'tag -f -a %s -m "%s"'%  (tag, description)
+            tag_command = 'tag -f -a {} -m "{}"'.format(tag, description)
 
         if self.simulate:
             self._info('SIMULATE :: ' + tag_command)
