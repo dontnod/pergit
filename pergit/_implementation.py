@@ -297,7 +297,7 @@ class Pergit(object):
             tag_command = 'tag -f {}'.format(tag)
         else:
             # create an annoted tag to write version changelog in description
-            tag_command = 'tag -f -a {} -m "{}"'.format(tag, description)
+            tag_command = 'tag -f -a {} -m "{}"'.format(tag, description.replace("{", "[").replace("}", "]"))
 
         if self.simulate:
             self._info('SIMULATE :: ' + tag_command)
