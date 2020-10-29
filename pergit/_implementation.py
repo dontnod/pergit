@@ -386,6 +386,10 @@ class Pergit(object):
             description = '\n'.join(description)
             description = description.replace("'", "\\'")
             description = description.replace('"', '\\"')
+            # Hack to avoid git tagging failing when formatting descriptions containing {}
+            # Temporary so that it works quickly and people can work
+            description = description.replace("{", "[")
+            description = description.replace("}", "]")
             description = self._strip_description_comments(description)
             self._export_change(tag_prefix, commits[-1], description, self._get_git_fileset(commits), auto_submit)
         else:
