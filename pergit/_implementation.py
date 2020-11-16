@@ -179,7 +179,7 @@ class Pergit(object):
             assert not perforce_changes
             self._export_changes(tag_prefix, git_changes, auto_submit)
         else:
-            self._info('Nothing to sync')
+            self._warn('Nothing to sync')
 
     def _get_latest_sync_state(self, tag_prefix):
         git = self._git
