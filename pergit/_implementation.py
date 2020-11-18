@@ -369,6 +369,9 @@ class Pergit(object):
         fileset = list(fileset)
         fileset = [file_list.split('\t')[1:] for file_list in fileset]
         fileset = [file for file_list in fileset for file in file_list]
+        logging.info(':: start debug fileset ::')
+        logging.info('\n'.join(str(file) for file in fileset))
+        logging.info(':: end debug fileset ::')
         return fileset
 
     def _export_changes(self, tag_prefix, commits, auto_submit):
