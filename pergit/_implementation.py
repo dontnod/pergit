@@ -316,7 +316,8 @@ class Pergit(object):
 
         git('checkout -f --recurse-submodules {}', commit).check()
         self._info(_('Preparing commit %s : %s'), commit[:10], description)
-        git('clean -fd').check()
+        if not auto_submit: # buildbot takes care of cleaning workspace
+            git('clean -fd').check()
 
         # will reconcile everything if the number of files changed is high (command-line length)
         modified_paths = '"%s/..."' % root
