@@ -177,7 +177,7 @@ class Pergit(object):
             self._import_changes(tag_prefix, perforce_changes)
         elif git_changes:
             assert not perforce_changes
-            self._export_changes(tag_prefix, git_changes, auto_submit)
+            self._export_changes(tag_prefix, git_changes, sync_commit, auto_submit)
         else:
             self._warn('Nothing to sync')
 
@@ -355,14 +355,16 @@ class Pergit(object):
         else:
             return description
 
-    def _get_git_fileset(self, commits):
+    def _get_git_fileset(self, commits, sync_commit):
         assert (len(commits) > 0)
 
         fileset = None
+        # we're syncing whole repo history from initial commit when no sync occured yet, do not try to fetch previous commit
+        one_commit_before = "~1" if sync_commit else ""
         if len(commits) > 1:
-            fileset = self._git('diff --name-status {}~1..{}', commits[0], commits[-1])
+            fileset = self._git('diff --name-status {}{}..{}', commits[0], one_commit_before, commits[-1])
         else:
-            fileset = self._git('diff --name-status {}~1..{}', commits[0], commits[0])
+            fileset = self._git('diff --name-status {}{}..{}', commits[0], one_commit_before, commits[0])
 
         if not fileset:
             self._error('Failed to retrieve git changed fileset for {}..{} range', commits[0], commits[-1])
@@ -375,7 +377,7 @@ class Pergit(object):
         logging.info(':: end debug fileset ::')
         return fileset
 
-    def _export_changes(self, tag_prefix, commits, auto_submit):
+    def _export_changes(self, tag_prefix, commits, sync_commit, auto_submit):
         p4 = self._p4
         git = self._git
         root = self._work_tree
@@ -395,12 +397,12 @@ class Pergit(object):
             description = description.replace("{", "[")
             description = description.replace("}", "]")
             description = self._strip_description_comments(description)
-            self._export_change(tag_prefix, commits[-1], description, self._get_git_fileset(commits), auto_submit)
+            self._export_change(tag_prefix, commits[-1], description, self._get_git_fileset(commits, sync_commit), auto_submit)
         else:
             for commit in commits:
                 description = git('show -s --pretty=format:\'%s <%an@%h>%n%b\' ').out()
                 description = self._strip_description_comments(description)
-                self._export_change(tag_prefix, commit, description, self._get_git_fileset([commit]), auto_submit)
+                self._export_change(tag_prefix, commit, description, self._get_git_fileset([commit], sync_commit), auto_submit)
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
