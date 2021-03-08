@@ -388,8 +388,6 @@ class Pergit(object):
         if self._squash_commits:
             desc_command = 'show -s --pretty=format:\'%%s <%%an@%%h>%%n%%b\' %s'
             description = [git(desc_command % it).out() for it in commits]
-            if not sync_commit: # don't force push whole repo history when no sync yet, desc length will break p4 submit
-                description = description[20:] + ['...']
             description.reverse()
             description = '\n'.join(description)
             description = description.replace("'", "\\'")
@@ -399,6 +397,8 @@ class Pergit(object):
             description = description.replace("{", "[")
             description = description.replace("}", "]")
             description = self._strip_description_comments(description)
+            if len(description) > 3900: # limit desc size because it breaks cmd on windows when exceding a certain amount of chars
+                description = description[:3900]
             self._export_change(tag_prefix, commits[-1], description, self._get_git_fileset(commits, sync_commit), auto_submit)
         else:
             for commit in commits:
