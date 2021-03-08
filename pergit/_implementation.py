@@ -388,6 +388,8 @@ class Pergit(object):
         if self._squash_commits:
             desc_command = 'show -s --pretty=format:\'%%s <%%an@%%h>%%n%%b\' %s'
             description = [git(desc_command % it).out() for it in commits]
+            if not sync_commit: # don't force push whole repo history when no sync yet, desc length will break p4 submit
+                description = description[20:] + ['...']
             description.reverse()
             description = '\n'.join(description)
             description = description.replace("'", "\\'")
