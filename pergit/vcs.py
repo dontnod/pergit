@@ -44,7 +44,7 @@ class VCSCommand(object):
                                       check=False,
                                       text=True,
                                       capture_output=True,
-                                      encoding="cp850",
+                                      encoding="utf-8",
                                       errors="ignore",
                                       env=env)
         # encodings = [('utf-8-sig', 'strict'), # utf-8 with or without BOM
