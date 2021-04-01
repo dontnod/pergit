@@ -44,8 +44,8 @@ class VCSCommand(object):
                                       check=False,
                                       text=True,
                                       capture_output=True,
-                                      encoding="utf-8",
-                                      errors="ignore",
+                                      # encoding="utf-8",
+                                      errors="strict",
                                       env=env)
         # encodings = [('utf-8-sig', 'strict'), # utf-8 with or without BOM
         #              ('cp850', 'strict'), # our actual p4 setting, may change to utf-8 in the future
