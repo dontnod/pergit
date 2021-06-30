@@ -319,10 +319,14 @@ class Pergit(object):
         if not auto_submit: # buildbot takes care of cleaning workspace
             git('clean -fd').check()
 
-        # will reconcile everything if the number of files changed is high (command-line length)
+        # reconcile everything
         modified_paths = '"%s/..."' % root
-        if fileset and len(fileset) < 100 and not self.force_full_reconcile: # limit the scope of reconcile to files modified by Git (should be much faster)
-            modified_paths = ' '.join([ '\"%s/%s\"' % (root, file) for file in fileset ])
+        # limit the scope of reconcile to files modified by Git to speed things up
+        # only if command line length allows for it
+        if fileset and not self.force_full_reconcile:
+            paths = ' '.join([ '\"%s/%s\"' % (root, file) for file in fileset ])
+            # cmd limit is arround 8000 char
+            modified_paths = paths if len(paths) < 7500 else modified_paths
 
         with p4.ignore('**/.git'):
             if self.simulate:
@@ -358,7 +362,9 @@ class Pergit(object):
     def _get_git_fileset(self, commits, sync_commit):
         assert (len(commits) > 0)
 
+        submodules = None
         fileset = None
+        # get diff files from regular repo, does not include possible submodules
         # we're syncing whole repo history from initial commit when no sync occured yet, do not try to fetch previous commit
         one_commit_before = "~1" if sync_commit else ""
         if len(commits) > 1:
@@ -368,13 +374,62 @@ class Pergit(object):
 
         if not fileset:
             self._error('Failed to retrieve git changed fileset for {}..{} range', commits[0], commits[-1])
-
+        # get file list from diff
         fileset = list(fileset)
         fileset = [file_list.split('\t')[1:] for file_list in fileset]
         fileset = [file for file_list in fileset for file in file_list]
         logging.info(':: start debug fileset ::')
         logging.info('\n'.join(str(file) for file in fileset))
         logging.info(':: end debug fileset ::')
+
+        # get submodules if any
+        submodules = list(git('submodule status --recursive'))
+        submodules = [submodule.split(' ')[1] for submodule in list(submodules)]
+        # get submodules subcommits, needed for diffing files
+        submodules_subcommits_map = []
+        for submodule in submodules:
+            submodule_diff_command = git('diff {}{}..{} {}', commits[0], one_commit_before, commits[-1], submodule)
+            submodule_commits = []
+            for line in list(submodule_diff_command):
+                if '-Subproject commit ' in line:
+                    submodule_commits += [line.split('-Subproject commit ')[-1]]
+                if '+Subproject commit ' in line:
+                    submodule_commits += [line.split('+Subproject commit ')[-1]]
+            submodules_subcommits_map += [(submodule, submodule_commits)]
+        # get submodules diff files now
+        submodules_files = []
+        logging.info(':: start debug submodules fileset ::')
+        if not submodules:
+            logging.info('No submodules found')
+        for submodule_path, submodule_commits in submodules_subcommits_map:
+            submodule_fileset = None
+            if len(submodule_commits) > 1:
+                submodule_fileset = git(
+                    '-C {} diff --name-status --relative {}..{}',
+                    submodule_path, submodule_commits[0], submodule_commits[1]
+                )
+            elif len(submodule_commits) == 1:
+                submodule_fileset = git(
+                    '-C {} diff --name-status --relative {}..{}',
+                    submodule_path, submodule_commits[0], submodule_commits[0]
+                )
+            if submodule_fileset:
+                submodule_fileset = list(submodule_fileset)
+                submodule_fileset = [file_list.split('\t')[1:] for file_list in submodule_fileset]
+                submodule_fileset = [submodule_path + '/' + file for file_list in submodule_fileset for file in
+                                     file_list]
+                submodules_files += submodule_fileset
+            logging.info(submodule_path + ':' + '..'.join(submodule_commits))
+            logging.info('\n'.join(submodules_files))
+        logging.info(':: end debug submodules fileset ::')
+        # Add submodules diff files to fileset if found
+        if submodules and submodules_files:
+            fileset = list(set(fileset) - set(submodules))  # Remove submodules paths from fileset
+            fileset += submodules_files # Add diff instead
+            logging.info(':: start debug repo + submodules fileset ::')
+            logging.info('\n'.join(str(file) for file in fileset))
+            logging.info(':: end debug repo + submodules fileset ::')
+
         return fileset
 
     def _export_changes(self, tag_prefix, commits, sync_commit, auto_submit):
