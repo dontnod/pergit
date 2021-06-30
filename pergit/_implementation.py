@@ -383,12 +383,12 @@ class Pergit(object):
         logging.info(':: end debug fileset ::')
 
         # get submodules if any
-        submodules = list(git('submodule status --recursive'))
-        submodules = [submodule.split(' ')[1] for submodule in list(submodules)]
+        submodules = list(self._git('submodule status --recursive'))
+        submodules = [submodule.self._git(' ')[1] for submodule in list(submodules)]
         # get submodules subcommits, needed for diffing files
         submodules_subcommits_map = []
         for submodule in submodules:
-            submodule_diff_command = git('diff {}{}..{} {}', commits[0], one_commit_before, commits[-1], submodule)
+            submodule_diff_command = self._git('diff {}{}..{} {}', commits[0], one_commit_before, commits[-1], submodule)
             submodule_commits = []
             for line in list(submodule_diff_command):
                 if '-Subproject commit ' in line:
@@ -404,20 +404,19 @@ class Pergit(object):
         for submodule_path, submodule_commits in submodules_subcommits_map:
             submodule_fileset = None
             if len(submodule_commits) > 1:
-                submodule_fileset = git(
+                submodule_fileset = self._git(
                     '-C {} diff --name-status --relative {}..{}',
                     submodule_path, submodule_commits[0], submodule_commits[1]
                 )
             elif len(submodule_commits) == 1:
-                submodule_fileset = git(
+                submodule_fileset = self._git(
                     '-C {} diff --name-status --relative {}..{}',
                     submodule_path, submodule_commits[0], submodule_commits[0]
                 )
             if submodule_fileset:
                 submodule_fileset = list(submodule_fileset)
                 submodule_fileset = [file_list.split('\t')[1:] for file_list in submodule_fileset]
-                submodule_fileset = [submodule_path + '/' + file for file_list in submodule_fileset for file in
-                                     file_list]
+                submodule_fileset = [submodule_path + '/' + file for file_list in submodule_fileset for file in file_list]
                 submodules_files += submodule_fileset
             logging.info(submodule_path + ':' + '..'.join(submodule_commits))
             logging.info('\n'.join(submodules_files))
