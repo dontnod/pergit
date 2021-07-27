@@ -333,7 +333,16 @@ class Pergit(object):
                 p4('reconcile -n {}', modified_paths).out()
                 self._info('SIMULATE :: submit -d "%s" "%s/..."' % (description, root))
             else:
-                p4('reconcile {}', modified_paths).out()
+                reconcile_output = p4('reconcile {}', modified_paths).out()
+                _reconcile_warning_flag = " !! "
+                _reconcile_legit_warning = "can't reconcile filename with wildcards [@#%*]. Use -f to force reconcile."
+                reconcile_errors = [
+                    l.strip() for l in reconcile_output.split('\n')
+                    if l.stratswith(_reconcile_warning_flag)
+                    and not l.endswith(_reconcile_legit_warning)
+                ]
+                if reconcile_errors:
+                    self._error('Failing sync because of the following errors:\n{}', '\n'.join(reconcile_errors))
 
         if not self.simulate:
             if not auto_submit: # legacy behavior - not for buildbot
