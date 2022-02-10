@@ -393,7 +393,7 @@ class Pergit(object):
 
         # get submodules if any
         submodules = list(self._git('submodule status --recursive'))
-        submodules = [submodule.self._git(' ')[1] for submodule in list(submodules)]
+        submodules = [submodule.split(' ')[1] for submodule in list(submodules)]
         # get submodules subcommits, needed for diffing files
         submodules_subcommits_map = []
         for submodule in submodules:
