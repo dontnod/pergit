@@ -338,7 +338,7 @@ class Pergit(object):
                 _reconcile_legit_warning = "can't reconcile filename with wildcards [@#%*]. Use -f to force reconcile."
                 reconcile_errors = [
                     l.strip() for l in reconcile_output.split('\n')
-                    if l.stratswith(_reconcile_warning_flag)
+                    if l.startswith(_reconcile_warning_flag)
                     and not l.endswith(_reconcile_legit_warning)
                 ]
                 if reconcile_errors:
