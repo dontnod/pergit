@@ -328,6 +328,8 @@ class Pergit(object):
             # cmd limit is arround 8000 char
             modified_paths = paths if len(paths) < 7500 else modified_paths
 
+        # debug client output
+        client_output = p4('client -o').out()
         with p4.ignore('**/.git'):
             if self.simulate:
                 p4('reconcile -n {}', modified_paths).out()
