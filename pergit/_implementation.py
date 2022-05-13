@@ -338,6 +338,8 @@ class Pergit(object):
                         self._info("ALF DEBUG Plugins: " + file_path)
             # debug client output to make sure client specs are what they should be
             client_output = p4('client -o').out()
+            reconcile_alf_debug_path = '"%s/Game/ALF/Plugins/..."' % root
+            client_output = p4('reconcile -n {}' + reconcile_alf_debug_path).out()
         except:
             self._warn("ALF debug failed")
 
