@@ -328,8 +328,19 @@ class Pergit(object):
             # cmd limit is arround 8000 char
             modified_paths = paths if len(paths) < 7500 else modified_paths
 
-        # debug client output
-        client_output = p4('client -o').out()
+        # ALF DEBUG, don't fail process if this fails for any reason
+        try:
+            # List Game/ALF/Plugins to make sure file are there at pergit time
+            for dp, dn, filenames in os.walk(root):
+                for f in filenames:
+                    file_path = os.path.join(dp, f).replace('\\', '/')
+                    if 'Game/ALF/Plugins' in file_path:
+                        self._info("ALF DEBUG Plugins: " + file_path)
+            # debug client output to make sure client specs are what they should be
+            client_output = p4('client -o').out()
+        except:
+            self._warn("ALF debug failed")
+
         with p4.ignore('**/.git'):
             if self.simulate:
                 p4('reconcile -n {}', modified_paths).out()
