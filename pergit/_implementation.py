@@ -463,7 +463,6 @@ class Pergit(object):
             description = [git(desc_command % it).out() for it in commits]
             description.reverse()
             description = '\n'.join(description)
-            description = description.replace("'", "\\'")
             description = description.replace('"', '\\"')
             # Hack to avoid git tagging failing when formatting descriptions containing {}
             # Temporary so that it works quickly and people can work
