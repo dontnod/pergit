@@ -28,7 +28,7 @@ import re
 import shlex
 import subprocess
 import tempfile
-import locale
+from typing import Type
 
 import pergit
 
@@ -36,7 +36,7 @@ P4_FIELD_RE = re.compile(r'^\.\.\. (?P<key>\w+) (?P<value>.*)$')
 
 class VCSCommand(object):
     ''' Object representing a git or perforce commmand '''
-    def __init__(self, command, env):
+    def __init__(self, command: list[str], env):
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.debug('Running %s', ' '.join([f'"{s}"' if ' ' in s else s for s in command]))
         self._result = subprocess.run(command,
@@ -91,7 +91,7 @@ class VCSCommand(object):
                 logger.debug(' %s %s', prefix, line)
 
 class _VCS(object):
-    def __init__(self, command_class, command_prefix):
+    def __init__(self, command_class: Type[VCSCommand], command_prefix: list[str]):
         self._command_class = command_class
         self._command_prefix = command_prefix
         self._env_stack = []
@@ -106,12 +106,12 @@ class _VCS(object):
         assert len(self._env_stack) == count
         self._env_stack.pop()
 
-    def __call__(self, command, *args, **kwargs):
+    def __call__(self, command: list[str]):
         env = os.environ.copy()
         for env_it in self._env_stack:
             env.update(env_it)
-        command = command.format(*args, **kwargs)
-        command = self._command_prefix + shlex.split(command)
+
+        command = self._command_prefix + command
         return self._command_class(command, env)
 
 class P4Command(VCSCommand):
