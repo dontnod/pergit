@@ -38,7 +38,7 @@ class VCSCommand(object):
     ''' Object representing a git or perforce commmand '''
     def __init__(self, command, env):
         logger = logging.getLogger(pergit.LOGGER_NAME)
-        logger.debug('Running %s', ' '.join(command))
+        logger.debug('Running %s', ' '.join([f'"{s}"' if ' ' in s else s for s in command]))
         self._result = subprocess.run(command,
                                       check=False,
                                       capture_output=True,
