@@ -34,8 +34,8 @@ _ = gettext.gettext
 _TAG_RE = re.compile(r'^.*@(?P<changelist>\d+)')
 
 _MSG_ARGUMENT_NOT_SET = _(
-    'You didn\'t gave {} argument and no previous value was stored in settings '
-    'for the specified  branch. Please run Pergit for this branch at least once'
+    'Argument {} was not provided and no previous value for the specified branch '
+    'was found in the settings. Please run Pergit for this branch at least once '
     'with this value set as command argument.')
 
 class PergitError(Exception):
@@ -121,12 +121,7 @@ class Pergit(object):
                 assert value.out()
                 return value.out()
             if default_value is None and not allow_none:
-                self._error('You didn\'t gave {} argument and no previous'
-                            ' value was stored in settings for the specified '
-                            ' branch. Please run Pergit for this branch at '
-                            ' least once with this value set as command '
-                            ' argument.',
-                            key)
+                self._error(_MSG_ARGUMENT_NOT_SET, key)
             value = default_value
 
         if value is not None:
