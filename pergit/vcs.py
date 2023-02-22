@@ -44,6 +44,9 @@ class VCSCommand(object):
                                       capture_output=True,
                                       env=env)
         def _decode(bytes_: bytes) -> str:
+            if bytes_ is None:
+                return ''
+
             encodings = [
                 ('utf-8', 'strict'), ('utf-8-sig', 'strict'), # utf-8 with or without BOM
                 ('cp850', 'strict'), # our actual p4 setting, may change to utf-8 in the future
