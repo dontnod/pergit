@@ -28,6 +28,7 @@ import re
 import subprocess
 import tempfile
 from typing import Type
+from P4 import P4 as P4Python
 
 import pergit
 
@@ -187,17 +188,30 @@ class P4Command(VCSCommand):
 class P4(_VCS):
     ''' Wrapper for P4 calls '''
     def __init__(self, port=None, user=None, client=None, password=None):
+        self._p4python = P4Python()
         command_prefix = ['p4', '-z', 'tag']
         if client is not None:
             command_prefix += ['-c', client]
+            self._p4python.client = client
         if password is not None:
             command_prefix += ['-P', password]
         if port is not None:
             command_prefix += ['-p', port]
+            self._p4python.port = port
         if user is not None:
             command_prefix += ['-u', user]
+            self._p4python.user = user
+
+        logging.debug('Using P4Python: %s', repr(self._p4python))
+        self._p4python.connect()
         super().__init__(P4Command, command_prefix)
 
+
+    def submit(self, desc):
+        change = self._p4python.fetch_change()
+        change._description = desc
+        logging.debug("%s", change)
+        self._p4python.run_submit( change )
 
     @contextlib.contextmanager
     def ignore(self, *patterns):

@@ -64,7 +64,9 @@ setuptools.setup(**dict(
         'pergit',
     ],
 
-    install_requires=[],
+    install_requires=[
+        'p4python',
+    ],
 
     entry_points={
         'console_scripts' : ['pergit = pergit.pergit_cli:main'],
