@@ -25,7 +25,6 @@ import contextlib
 import logging
 import os
 import re
-import shlex
 import subprocess
 import tempfile
 from typing import Type
@@ -38,7 +37,7 @@ class VCSCommand(object):
     ''' Object representing a git or perforce commmand '''
     def __init__(self, command: list[str], env):
         logger = logging.getLogger(pergit.LOGGER_NAME)
-        logger.debug('Running %s', ' '.join([f'"{s}"' if ' ' in s else s for s in command]))
+        logger.debug('Running %s', subprocess.list2cmdline(command))
         self._result = subprocess.run(command,
                                       check=False,
                                       capture_output=True,
