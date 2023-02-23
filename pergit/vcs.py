@@ -25,10 +25,9 @@ import contextlib
 import logging
 import os
 import re
-import shlex
 import subprocess
 import tempfile
-import locale
+from typing import Type
 
 import pergit
 
@@ -36,9 +35,9 @@ P4_FIELD_RE = re.compile(r'^\.\.\. (?P<key>\w+) (?P<value>.*)$')
 
 class VCSCommand(object):
     ''' Object representing a git or perforce commmand '''
-    def __init__(self, command, env):
+    def __init__(self, command: list[str], env):
         logger = logging.getLogger(pergit.LOGGER_NAME)
-        logger.debug('Running %s', ' '.join([f'"{s}"' if ' ' in s else s for s in command]))
+        logger.debug('Running %s', subprocess.list2cmdline(command))
         self._result = subprocess.run(command,
                                       check=False,
                                       capture_output=True,
@@ -60,11 +59,11 @@ class VCSCommand(object):
             return bytes_.decode(encoding='cp850', errors='replace')  # last chance
 
 
-        self._result.stdout = _decode(self._result.stdout)
-        self._result.stderr = _decode(self._result.stderr)
+        self._stdout = _decode(self._result.stdout)
+        self._stderr = _decode(self._result.stderr)
 
-        VCSCommand._debug_output(self._result.stdout, '--')
-        VCSCommand._debug_output(self._result.stderr, '!!')
+        VCSCommand._debug_output(self._stdout, '--')
+        VCSCommand._debug_output(self._stderr, '!!')
 
     def check(self):
         ''' Raises CalledProcessError if the command failed '''
@@ -72,13 +71,13 @@ class VCSCommand(object):
 
     def err(self):
         ''' Returns stdeer for this command '''
-        return self._result.stderr
+        return self._stderr
 
     def out(self):
         ''' Returns stdout for command, raise CalledProcessError if the command
             failed '''
         self.check()
-        return self._result.stdout.strip()
+        return self._stdout.strip()
 
     def __bool__(self):
         return self._result.returncode == 0
@@ -91,7 +90,7 @@ class VCSCommand(object):
                 logger.debug(' %s %s', prefix, line)
 
 class _VCS(object):
-    def __init__(self, command_class, command_prefix):
+    def __init__(self, command_class: Type[VCSCommand], command_prefix: list[str]):
         self._command_class = command_class
         self._command_prefix = command_prefix
         self._env_stack = []
@@ -106,12 +105,12 @@ class _VCS(object):
         assert len(self._env_stack) == count
         self._env_stack.pop()
 
-    def __call__(self, command, *args, **kwargs):
+    def __call__(self, command: list[str]):
         env = os.environ.copy()
         for env_it in self._env_stack:
             env.update(env_it)
-        command = command.format(*args, **kwargs)
-        command = self._command_prefix + shlex.split(command)
+
+        command = self._command_prefix + command
         return self._command_class(command, env)
 
 class P4Command(VCSCommand):
