@@ -60,11 +60,11 @@ class VCSCommand(object):
             return bytes_.decode(encoding='cp850', errors='replace')  # last chance
 
 
-        self._result.stdout = _decode(self._result.stdout)
-        self._result.stderr = _decode(self._result.stderr)
+        self._stdout = _decode(self._result.stdout)
+        self._stderr = _decode(self._result.stderr)
 
-        VCSCommand._debug_output(self._result.stdout, '--')
-        VCSCommand._debug_output(self._result.stderr, '!!')
+        VCSCommand._debug_output(self._stdout, '--')
+        VCSCommand._debug_output(self._stderr, '!!')
 
     def check(self):
         ''' Raises CalledProcessError if the command failed '''
@@ -72,13 +72,13 @@ class VCSCommand(object):
 
     def err(self):
         ''' Returns stdeer for this command '''
-        return self._result.stderr
+        return self._stderr
 
     def out(self):
         ''' Returns stdout for command, raise CalledProcessError if the command
             failed '''
         self.check()
-        return self._result.stdout.strip()
+        return self._stdout.strip()
 
     def __bool__(self):
         return self._result.returncode == 0
