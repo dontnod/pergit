@@ -307,9 +307,9 @@ class Pergit(object):
         p4 = self._p4
         root = self._work_tree
 
-        git(['checkout', '-f', '--recurse-submodules', commit]).check()
         self._info(_('Preparing commit %s : %s'), commit[:10], description)
         if not auto_submit: # buildbot takes care of cleaning workspace
+            git(['checkout', '-f', '--recurse-submodules', commit]).check()
             git(['clean', '-fd']).check()
 
         # reconcile everything
