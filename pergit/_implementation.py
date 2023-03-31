@@ -299,7 +299,8 @@ class Pergit(object):
                 self._warn(_('Tag %s already existed, it will be replaced.'), tag)
             git(tag_command).out()
             self._info('Pushing tags...')
-            git(['push', '--tags', '--verbose']).out()
+            for remote in git(['remote']).out().splitlines(keepends=False):
+                git(['push', '--verbose', remote, tag]).out()
 
     def _export_change(self, tag_prefix, commit, description, fileset, auto_submit):
         # git = self._git
