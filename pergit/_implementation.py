@@ -20,6 +20,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' pergit commands '''
+from __future__ import annotations
+
 import gettext
 import logging
 import re
@@ -377,75 +379,92 @@ class Pergit(object):
         else:
             return description
 
-    def _get_git_fileset(self, commits, sync_commit):
+    def _get_git_fileset(self, commits, sync_commit, git_dir: str | None = None):
         assert (len(commits) > 0)
 
-        submodules = None
-        fileset = None
+        git_workdir = []
+        if git_dir is not None:
+            git_workdir = ["-C", git_dir]
+
         # get diff files from regular repo, does not include possible submodules
         # we're syncing whole repo history from initial commit when no sync occured yet, do not try to fetch previous commit
         one_commit_before = "~1" if sync_commit else ""
-        if len(commits) > 1:
-            fileset = self._git(['diff', '--name-status', '{}{}..{}'.format(commits[0], one_commit_before, commits[-1])])
-        else:
-            fileset = self._git(['diff', '--name-status', '{}{}..{}'.format(commits[0], one_commit_before, commits[0])])
+
+        current_commit = commits[-1]
+        prev_commit = commits[0]
+
+        fileset = list(self._git(git_workdir + ['diff', '--name-only', '{}{}..{}'.format(prev_commit, one_commit_before, current_commit), "--"]))
 
         if not fileset:
-            self._error('Failed to retrieve git changed fileset for {}..{} range', commits[0], commits[-1])
+            self._error('Failed to retrieve git changed fileset for {}..{} range', prev_commit, current_commit)
         # get file list from diff
-        fileset = list(fileset)
-        fileset = [file_list.split('\t')[1:] for file_list in fileset]
-        fileset = [file for file_list in fileset for file in file_list]
         logging.info(':: start debug fileset ::')
-        logging.info('\n'.join(str(file) for file in fileset))
+        logging.info('\n'.join(fileset))
         logging.info(':: end debug fileset ::')
 
-        # get submodules if any
-        submodules = list(self._git(['submodule', 'status', '--recursive']))
-        submodules = [submodule.split(' ')[1] for submodule in list(submodules)]
-        # get submodules subcommits, needed for diffing files
-        submodules_subcommits_map = []
-        for submodule in submodules:
-            submodule_diff_command = self._git(['diff', '{}{}..{}'.format(commits[0], one_commit_before, commits[-1]), submodule])
-            submodule_commits = []
-            for line in list(submodule_diff_command):
-                if '-Subproject commit ' in line:
-                    submodule_commits += [line.split('-Subproject commit ')[-1]]
-                if '+Subproject commit ' in line:
-                    submodule_commits += [line.split('+Subproject commit ')[-1]]
-            submodules_subcommits_map += [(submodule, submodule_commits)]
-        # get submodules diff files now
-        submodules_files = []
-        logging.info(':: start debug submodules fileset ::')
-        if not submodules:
-            logging.info('No submodules found')
-        for submodule_path, submodule_commits in submodules_subcommits_map:
-            submodule_fileset = None
-            if len(submodule_commits) > 1:
-                submodule_fileset = self._git([
-                    '-C', submodule_path, 'diff', '--name-status', '--relative',
-                    '{}..{}'.format(submodule_commits[0], submodule_commits[1])
-                ])
-            elif len(submodule_commits) == 1:
-                submodule_fileset = self._git([
-                    '-C', submodule_path, 'diff', '--name-status', '--relative',
-                    '{}..{}'.format(submodule_commits[0], submodule_commits[0])
-                ])
-            if submodule_fileset:
-                submodule_fileset = list(submodule_fileset)
-                submodule_fileset = [file_list.split('\t')[1:] for file_list in submodule_fileset]
-                submodule_fileset = [submodule_path + '/' + file for file_list in submodule_fileset for file in file_list]
-                submodules_files += submodule_fileset
-            logging.info(submodule_path + ':' + '..'.join(submodule_commits))
-            logging.info('\n'.join(submodules_files))
-        logging.info(':: end debug submodules fileset ::')
-        # Add submodules diff files to fileset if found
-        if submodules and submodules_files:
-            fileset = list(set(fileset) - set(submodules))  # Remove submodules paths from fileset
-            fileset += submodules_files # Add diff instead
-            logging.info(':: start debug repo + submodules fileset ::')
-            logging.info('\n'.join(str(file) for file in fileset))
-            logging.info(':: end debug repo + submodules fileset ::')
+        # SUBMODULES
+
+        if git_dir is not None:
+            git_modules_path = os.path.join(git_dir, ".gitmodules")
+        else:
+            git_modules_path = ".gitmodules"
+
+        if os.path.exists(git_modules_path):
+            # list submodules
+            config_submodule_args = ["config", "--file", ".gitmodules"]
+
+            # list all path entries in .gitmodules
+            submodule_entries = list(self._git(
+                git_workdir + config_submodule_args + ["--name-only", "--get-regexp", "submodule.*.path"]
+            ))
+
+            submodules_path = [
+                self._git(
+                    git_workdir + config_submodule_args + ["--get", value]
+                ).out()
+                for value in submodule_entries
+            ]
+
+            # remove submodule paths from changed fileset
+            fileset = [e for e in fileset if e not in submodules_path]
+
+            logging.info(':: found submodules at paths ::')
+            logging.info('\n'.join(submodules_path))
+
+            ls_tree_output_regex = re.compile(r"^\d+ commit (?P<rev>[a-z0-9]+)\t.*$")
+            for submodule_path in submodules_path:
+                submodule_entry_at_current = self._git(git_workdir + ["ls-tree", current_commit, "--", submodule_path]).out()
+                if not submodule_entry_at_current:
+                    # submodule was probably removed
+                    fileset.append(submodule_path)
+                    continue
+
+                submodule_entry_at_prev = self._git(git_workdir + ["ls-tree", prev_commit, "--", submodule_path]).out()
+                if not submodule_entry_at_prev:
+                    # submodule was added at this commit
+                    submodule_entry_at_prev = submodule_entry_at_current
+
+                submodule_prev_commit = ls_tree_output_regex.match(
+                    submodule_entry_at_prev
+                )["rev"]
+
+                submodule_current_commit = ls_tree_output_regex.match(
+                    submodule_entry_at_current
+                )["rev"]
+
+                submodule_git_dir = submodule_path
+                if git_dir is not None:
+                    submodule_git_dir = f"{git_dir}/{submodule_path}"
+
+                submodule_fileset = self._get_git_fileset(
+                    [submodule_prev_commit, submodule_current_commit],
+                    sync_commit, submodule_git_dir,
+                )
+
+                fileset.extend(
+                    f"{submodule_path}/{file}"
+                    for file in submodule_fileset
+                )
 
         return fileset
 
