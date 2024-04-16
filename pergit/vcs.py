@@ -249,7 +249,7 @@ class GitCommand(VCSCommand):
         if self._lines is not None:
             return
         self.check()
-        self._lines = [it for it in self.out().split('\n') if it]
+        self._lines = [it.strip() for it in self.out().split('\n') if it.strip()]
 
 class Git(_VCS):
     ''' Wrapper representing a given git repository cloned in a given
