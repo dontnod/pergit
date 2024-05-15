@@ -395,8 +395,6 @@ class Pergit(object):
 
         fileset = list(self._git(git_workdir + ['diff', '--name-only', '{}{}..{}'.format(prev_commit, one_commit_before, current_commit), "--"]))
 
-        if not fileset:
-            self._error('Failed to retrieve git changed fileset for {}..{} range', prev_commit, current_commit)
         # get file list from diff
         logging.info(':: start debug fileset ::')
         logging.info('\n'.join(fileset))
