@@ -1,0 +1,48 @@
+[project]
+name = "pergit"
+description = "Git and Perforce synchronization utility"
+requires-python = ">=3.9"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Dontnod Entertainment", email = "root@dont-nod.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+keywords = ["perforce", "git", "p4", "synchronization"]
+dynamic = ["version"]
+
+dependencies = [
+    "p4python",
+]
+
+[project.scripts]
+pergit = "pergit.pergit_cli:main"
+
+[project.urls]
+Repository = "https://github.com/dontnod/pergit"
+
+[build-system]
+requires = ["setuptools>=43.0.0", "wheel", "setuptools-git-versioning>=2.0,<3"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "pergit",
+]
+
+[tool.setuptools-git-versioning]
+enabled = true
+version_file = "VERSION"
+count_commits_from_version_file = true
+dev_template = "{tag}.post{ccount}"
