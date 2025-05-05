@@ -55,7 +55,9 @@ def main(argv=None):
                            p4_port=args.p4_port,
                            p4_user=args.p4_user,
                            p4_client=args.p4_client,
-                           p4_password=args.p4_password) as impl:
+                           p4_password=args.p4_password,
+                           force_full_reconcile=args.force_full_reconcile,
+                           simulate=args.simulate) as impl:
             impl.sychronize(changelist=args.changelist,
                             tag_prefix=args.tag_prefix,
                             auto_submit=args.auto_submit)
@@ -110,12 +112,22 @@ def _get_parser():
                         default=None)
 
     parser.add_argument('--auto-submit',
-                        help='Submit without asking for user validation',
+                        help='Submit to perforce server without asking for user validation',
                         action='store_true')
 
     parser.add_argument('--strip-comments',
                         help='Remove every live leaded by "#" from the log',
                         action='store_true')
+
+    parser.add_argument('--force-full-reconcile',
+                        help='Force perforce reconcile over full workspace',
+                        action='store_true',
+                        default=False)
+
+    parser.add_argument('--simulate',
+                        help='Perform a dry run with no submit nor push',
+                        action='store_true',
+                        default=False)
 
     return parser
 

@@ -25,10 +25,10 @@ import contextlib
 import logging
 import os
 import re
-import shlex
 import subprocess
 import tempfile
-import locale
+from typing import Type
+from P4 import P4 as P4Python
 
 import pergit
 
@@ -36,18 +36,35 @@ P4_FIELD_RE = re.compile(r'^\.\.\. (?P<key>\w+) (?P<value>.*)$')
 
 class VCSCommand(object):
     ''' Object representing a git or perforce commmand '''
-    def __init__(self, command, env):
+    def __init__(self, command: list[str], env):
         logger = logging.getLogger(pergit.LOGGER_NAME)
-        logger.debug('Running %s', ' '.join(command))
-        encoding = locale.getdefaultlocale()[1]
+        logger.debug('Running %s', subprocess.list2cmdline(command))
         self._result = subprocess.run(command,
                                       check=False,
-                                      text=True,
                                       capture_output=True,
-                                      encoding=encoding,
                                       env=env)
-        VCSCommand._debug_output(self._result.stdout, '--')
-        VCSCommand._debug_output(self._result.stderr, '!!')
+        def _decode(bytes_: bytes) -> str:
+            if bytes_ is None:
+                return ''
+
+            encodings = [
+                ('utf-8', 'strict'), ('utf-8-sig', 'strict'), # utf-8 with or without BOM
+                ('cp850', 'strict'), # our actual p4 setting, may change to utf-8 in the future
+            ]
+            for (encoding, errors) in encodings:
+                try:
+                    return bytes_.decode(encoding=encoding, errors=errors)
+                except UnicodeDecodeError:
+                    pass
+
+            return bytes_.decode(encoding='cp850', errors='replace')  # last chance
+
+
+        self._stdout = _decode(self._result.stdout)
+        self._stderr = _decode(self._result.stderr)
+
+        VCSCommand._debug_output(self._stdout, '--')
+        VCSCommand._debug_output(self._stderr, '!!')
 
     def check(self):
         ''' Raises CalledProcessError if the command failed '''
@@ -55,13 +72,13 @@ class VCSCommand(object):
 
     def err(self):
         ''' Returns stdeer for this command '''
-        return self._result.stderr
+        return self._stderr
 
     def out(self):
         ''' Returns stdout for command, raise CalledProcessError if the command
             failed '''
         self.check()
-        return self._result.stdout.strip()
+        return self._stdout.strip()
 
     def __bool__(self):
         return self._result.returncode == 0
@@ -74,7 +91,7 @@ class VCSCommand(object):
                 logger.debug(' %s %s', prefix, line)
 
 class _VCS(object):
-    def __init__(self, command_class, command_prefix):
+    def __init__(self, command_class: Type[VCSCommand], command_prefix: list[str]):
         self._command_class = command_class
         self._command_prefix = command_prefix
         self._env_stack = []
@@ -89,12 +106,12 @@ class _VCS(object):
         assert len(self._env_stack) == count
         self._env_stack.pop()
 
-    def __call__(self, command, *args, **kwargs):
+    def __call__(self, command: list[str]):
         env = os.environ.copy()
         for env_it in self._env_stack:
             env.update(env_it)
-        command = command.format(*args, **kwargs)
-        command = self._command_prefix + shlex.split(command)
+
+        command = self._command_prefix + command
         return self._command_class(command, env)
 
 class P4Command(VCSCommand):
@@ -171,17 +188,30 @@ class P4Command(VCSCommand):
 class P4(_VCS):
     ''' Wrapper for P4 calls '''
     def __init__(self, port=None, user=None, client=None, password=None):
+        self._p4python = P4Python()
         command_prefix = ['p4', '-z', 'tag']
         if client is not None:
             command_prefix += ['-c', client]
+            self._p4python.client = client
         if password is not None:
             command_prefix += ['-P', password]
         if port is not None:
             command_prefix += ['-p', port]
+            self._p4python.port = port
         if user is not None:
             command_prefix += ['-u', user]
+            self._p4python.user = user
+
+        logging.debug('Using P4Python: %s', repr(self._p4python))
+        self._p4python.connect()
         super().__init__(P4Command, command_prefix)
 
+
+    def submit(self, desc):
+        change = self._p4python.fetch_change()
+        change._description = desc
+        logging.debug("%s", change)
+        self._p4python.run_submit( change )
 
     @contextlib.contextmanager
     def ignore(self, *patterns):
@@ -219,7 +249,7 @@ class GitCommand(VCSCommand):
         if self._lines is not None:
             return
         self.check()
-        self._lines = [it for it in self.out().split('\n') if it]
+        self._lines = [it.strip() for it in self.out().split('\n') if it.strip()]
 
 class Git(_VCS):
     ''' Wrapper representing a given git repository cloned in a given

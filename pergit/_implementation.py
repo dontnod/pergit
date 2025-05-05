@@ -20,6 +20,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ''' pergit commands '''
+from __future__ import annotations
+
 import gettext
 import logging
 import re
@@ -28,12 +30,14 @@ import sys
 import pergit
 import pergit.vcs
 
+import os
+
 _ = gettext.gettext
 _TAG_RE = re.compile(r'^.*@(?P<changelist>\d+)')
 
 _MSG_ARGUMENT_NOT_SET = _(
-    'You didn\'t gave {} argument and no previous value was stored in settings '
-    'for the specified  branch. Please run Pergit for this branch at least once'
+    'Argument {} was not provided and no previous value for the specified branch '
+    'was found in the settings. Please run Pergit for this branch at least once '
     'with this value set as command argument.')
 
 class PergitError(Exception):
@@ -57,16 +61,28 @@ class Pergit(object):
                  p4_port=None,
                  p4_user=None,
                  p4_client=None,
-                 p4_password=None):
+                 p4_password=None,
+                 force_full_reconcile=False,
+                 simulate=False):
+        self.force_full_reconcile = force_full_reconcile
+        self.simulate = simulate
         self._git = pergit.vcs.Git(config={'core.fileMode': 'false'})
 
+        if self.simulate:
+            self._info('*** SIMULATING PERGIT ***')
+
         if branch is None:
-            branch = self._git('rev-parse --abbrev-ref HEAD').out()
+            branch = self._git(['rev-parse', '--abbrev-ref', 'HEAD']).out()
+        remote = self._git(['remote', 'show']).out()
 
         self._branch = branch
+        self._remote = remote
         self._squash_commits = squash_commits
         self._strip_comments = strip_comments
-        self._work_tree = pergit.vcs.Git()('rev-parse --show-toplevel').out()
+        self._work_tree = pergit.vcs.Git()(['rev-parse', '--show-toplevel']).out()
+        # dirty hack to prevent bad behavior whith msys2 / windows
+        if os.name == 'nt':
+            self._work_tree = re.sub('^/(.)/', r'\1:/', self._work_tree)
 
         p4_port = self._load_argument('p4-port', p4_port, None, True)
         p4_client = self._load_argument('p4-client', p4_client, None, True)
@@ -77,6 +93,11 @@ class Pergit(object):
                                  user=p4_user,
                                  client=p4_client,
                                  password=p4_password)
+        # BB hack
+        self._p4_submit = pergit.vcs.P4(port=p4_port,
+                                        user=p4_user,
+                                        client=p4_client,
+                                        password=p4_password)
 
         self._previous_head = None
 
@@ -97,21 +118,16 @@ class Pergit(object):
         branch_key = self._branch.replace('/', '.')
         config_key = 'pergit.{}.{}'.format(branch_key, key)
         if value is None:
-            value = git('config {}', config_key)
+            value = git(['config', config_key])
             if value:
                 assert value.out()
                 return value.out()
             if default_value is None and not allow_none:
-                self._error('You didn\'t gave {} argument and no previous'
-                            ' value was stored in settings for the specified '
-                            ' branch. Please run Pergit for this branch at '
-                            ' least once with this value set as command '
-                            ' argument.',
-                            key)
+                self._error(_MSG_ARGUMENT_NOT_SET, key)
             value = default_value
 
         if value is not None:
-            git('config --local {} "{}"', config_key, value).check()
+            git(['config', '--local', config_key, value]).check()
         return value
 
     def __enter__(self):
@@ -120,15 +136,15 @@ class Pergit(object):
         # Reverting and cleaning files in order to not commit trash to git
         p4 = self._p4
         self._info("Preparing Git and Perforce workspaces")
-        p4('revert "{}"', p4_root).check()
+        p4(['revert', p4_root]).check()
 
         git = self._git
-        if not git('rev-parse --is-inside-work-tree'):
+        if not git(['rev-parse', '--is-inside-work-tree']):
             self._error(_('Not in a git repository, please run pergit from the'
                           ' folder of the git repository in which you want to '
                           'import Perforce depot'))
 
-        current_head = git('rev-parse --abbrev-ref HEAD')
+        current_head = git(['rev-parse', '--abbrev-ref', 'HEAD'])
 
         if current_head:
             self._previous_head = current_head.out()
@@ -138,13 +154,13 @@ class Pergit(object):
     def sychronize(self,
                    changelist,
                    tag_prefix=None,
-                   auto_submit=False):
+                   auto_submit=False,):
         ''' Runs the import command '''
         git = self._git
 
         tag_prefix = self._load_argument('tag-prefix', tag_prefix, self._branch)
 
-        git('symbolic-ref HEAD refs/heads/{}', self._branch)
+        git(['symbolic-ref', 'HEAD', 'refs/heads/{}'.format(self._branch)])
 
         sync_commit, sync_changelist = self._get_latest_sync_state(tag_prefix)
         git_changes, perforce_changes = self._get_changes(changelist,
@@ -158,13 +174,13 @@ class Pergit(object):
             self._import_changes(tag_prefix, perforce_changes)
         elif git_changes:
             assert not perforce_changes
-            self._export_changes(tag_prefix, git_changes, auto_submit)
+            self._export_changes(tag_prefix, git_changes, sync_commit, auto_submit)
         else:
-            self._info('Nothing to sync')
+            self._warn('Nothing to sync')
 
     def _get_latest_sync_state(self, tag_prefix):
         git = self._git
-        latest_tag = git('describe --tags --match "{}@*"', tag_prefix)
+        latest_tag = git(['describe', '--tags', '--match', "{}@*".format(tag_prefix)])
         if not latest_tag:
             return None, None
         latest_tag = latest_tag.out()
@@ -175,7 +191,7 @@ class Pergit(object):
                         'format is incorrect.')
 
         changelist = match.group('changelist')
-        commit = git('show --pretty=format:%H --no-patch {}@{}', tag_prefix, changelist)
+        commit = git(['show', '--pretty=format:%H', '--no-patch', '-n1', '{}@{}'.format(tag_prefix, changelist)])
         return commit.out(), changelist
 
 
@@ -191,9 +207,10 @@ class Pergit(object):
                           ' current branch. Reset your branch to the changelist'
                           ' you want to sync from, then run pergit again'))
 
-        changelists = self._p4('changes -l "{}/...@{},#head"',
-                               self._work_tree,
-                               changelist)
+        changelists = self._p4([
+            'changes', '-l',
+            "{}/...@{},#head".format(self._work_tree, changelist)
+        ])
 
         changelists = list(reversed(changelists))
 
@@ -205,9 +222,9 @@ class Pergit(object):
             changelists = changelists[1:]
 
         if sync_commit:
-            commits = self._git('log --pretty=format:%H --ancestry-path {}..HEAD', sync_commit)
+            commits = self._git(['log', '--pretty=format:%H', '--ancestry-path', '{}..HEAD'.format(sync_commit)])
         else:
-            commits = self._git('log --pretty=format:%H')
+            commits = self._git(['log', '--pretty=format:%H'])
 
         if commits:
             commits = list(commits)
@@ -218,14 +235,15 @@ class Pergit(object):
         return [], changelists
 
     def _get_perforce_changes(self, changelist):
-        changelists = self._p4('changes -l "{}/...@{},#head"',
-                               self._work_tree,
-                               changelist)
+        changelists = self._p4([
+            'changes', '-l',
+            "{}/...@{},#head".format(self._work_tree, changelist)
+        ])
 
         return reversed(changelists)
 
     def _import_changes(self, tag_prefix, changes):
-        info = self._p4('info').single_record()
+        info = self._p4(['info']).single_record()
         date_re = r'\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} ([+|-]\d{4}).*$'
         date_re = re.compile(date_re)
         utc_offset = date_re.match(info['serverDate']).group(1)
@@ -240,25 +258,23 @@ class Pergit(object):
         self._info(_('Syncing then committing changelist %s : %s'),
                    change['change'],
                    change['desc'])
-        p4('sync "{}/...@{}"', self._work_tree, change['change']).check()
-        description = change['desc'].replace('"', '\\"')
-        git('add .').check()
+        p4(['sync', "{}/...@{}".format(self._work_tree, change['change'])]).check()
+        description = change['desc']
+        git(['add', '.']).check()
 
         # Commit event if there are no changes, to keep P4 C.L description
         # and corresponding tag in git history
         author = self._get_author(change, user_cache)
         date = '%s %s' % (change['time'], utc_offset)
         with git.with_env(GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date):
-            git('commit --allow-empty --author "{}" -m "{}"',
-                author,
-                description).check()
+            git(['commit', '--allow-empty', '--author', author, '-m', description]).check()
 
     def _get_author(self, change, user_cache):
         user = change['user']
         if user in user_cache:
             return user_cache[user]
 
-        user = self._p4('users {}', user)
+        user = self._p4(['users', user])
 
         if not user:
             author = 'Pergit <a@b>'
@@ -269,71 +285,211 @@ class Pergit(object):
 
         return author
 
-    def _tag_commit(self, tag_prefix, change):
-        git = self._git
+    def _tag_commit(self, tag_prefix, change, description=None):
+        # git = self._git
+        git = pergit.vcs.Git()
         tag = '{}@{}'.format(tag_prefix, change['change'])
+        tag_command = ['tag', '-f', tag]
+        if description is not None:
+            # create an annoted tag to write version changelog in description
+            tag_command.extend(['-m', description])
 
-        if git('tag -l {}', tag).out():
-            self._warn(_('Tag %s already existed, it will be replaced.'), tag)
+        if self.simulate:
+            self._info('SIMULATE :: ' + tag_command)
+        if not self.simulate:
+            if git(['tag', '-l', tag]).out():
+                self._warn(_('Tag %s already existed, it will be replaced.'), tag)
+            git(tag_command).out()
+            self._info('Pushing tags...')
+            for remote in git(['remote']).out().splitlines(keepends=False):
+                git(['push', '--verbose', remote, tag]).out()
 
-        git('tag -f {}', tag).check()
-
-    def _export_change(self, tag_prefix, commit, description, auto_submit):
-        git = self._git
+    def _export_change(self, tag_prefix, commit, description, fileset, auto_submit):
+        # git = self._git
+        git = pergit.vcs.Git()
         p4 = self._p4
         root = self._work_tree
 
-        git('checkout -f --recurse-submodules {}', commit).check()
         self._info(_('Preparing commit %s : %s'), commit[:10], description)
-        git('clean -fd').check()
+        if not auto_submit: # buildbot takes care of cleaning workspace
+            git(['checkout', '-f', '--recurse-submodules', commit]).check()
+            git(['clean', '-fd']).check()
+
+        # reconcile everything
+        modified_paths = '%s/...' % root
+        # limit the scope of reconcile to files modified by Git to speed things up
+        # only if command line length allows for it
+        if fileset and not self.force_full_reconcile:
+            paths = ' '.join([ '%s/%s' % (root, file) for file in fileset ])
+            # cmd limit is arround 8000 char
+            modified_paths = paths if len(paths) < 7500 else modified_paths
+
+        # ALF DEBUG, don't fail process if this fails for any reason
+        try:
+            # List Game/ALF/Plugins to make sure file are there at pergit time
+            for dp, dn, filenames in os.walk(root):
+                for f in filenames:
+                    file_path = os.path.join(dp, f).replace('\\', '/')
+                    if 'Game/ALF/Plugins' in file_path:
+                        self._info("ALF DEBUG Plugins: " + file_path)
+            # debug client output to make sure client specs are what they should be
+            client_output = p4(['client', '-o']).out()
+            reconcile_alf_debug_path = '%s/Game/ALF/Plugins/...' % root
+            client_output = p4(['reconcile', '-n', reconcile_alf_debug_path]).out()
+        except:
+            self._warn("ALF debug failed")
 
         with p4.ignore('**/.git'):
-            p4('reconcile "{}/..."', root).check()
+            if self.simulate:
+                p4(['reconcile', '-n', modified_paths]).out()
+                self._info('SIMULATE :: submit -d "%s" "%s/..."' % (description, root))
+            else:
+                reconcile_output = p4(['reconcile', modified_paths]).out()
+                _reconcile_warning_flag = " !! "
+                _reconcile_legit_warning = "can't reconcile filename with wildcards [@#%*]. Use -f to force reconcile."
+                reconcile_errors = [
+                    l.strip() for l in reconcile_output.split('\n')
+                    if l.startswith(_reconcile_warning_flag)
+                    and not l.endswith(_reconcile_legit_warning)
+                ]
+                if reconcile_errors:
+                    self._error('Failing sync because of the following errors:\n{}', '\n'.join(reconcile_errors))
 
-        if not auto_submit:
-            self._info('Submit in ready in default changelist.')
-            self._info('Press (s) to submit.')
-            while True:
-                char = sys.stdin.read(1)
-                if char == 's' or char == 'S':
-                    break
+        if not self.simulate:
+            if not auto_submit: # legacy behavior - not for buildbot
+                self._info('Submit is ready in default changelist.')
+                while True:
+                    char = sys.stdin.read(1)
+                    if char == 's' or char == 'S':
+                        break
 
-        self._info('Submitting')
-        p4('submit -d "{}" "{}/..."', description, root).check()
-        change = p4('changes -m 1 -s submitted').single_record()
-        self._tag_commit(tag_prefix, change)
+            self._info('Submitting')
+            p4_submit = self._p4_submit
+            p4_submit.submit(description)
+
+        change = p4(['changes', '-m', '1', '-s', 'submitted']).single_record()
+        self._tag_commit(tag_prefix, change, description)
 
     def _strip_description_comments(self, description):
         if self._strip_comments:
-            stripped = [ ln for ln in description.splitlines() if not (len(ln) == 0 or ln.strip().startswith('#')) ]
+            stripped = [ ln for ln in description.splitlines() if not (len(ln)) == 0 ]
+            if len(stripped) > 1: # Protect against empty descriptions if we have only # message
+                stripped = [ ln for ln in stripped if not ln.strip().startswith('#') ]
             return '\n'.join(stripped)
         else:
             return description
 
-    def _export_changes(self, tag_prefix, commits, auto_submit):
+    def _get_git_fileset(self, commits, sync_commit, git_dir: str | None = None):
+        assert (len(commits) > 0)
+
+        git_workdir = []
+        if git_dir is not None:
+            git_workdir = ["-C", git_dir]
+
+        # get diff files from regular repo, does not include possible submodules
+        # we're syncing whole repo history from initial commit when no sync occured yet, do not try to fetch previous commit
+        one_commit_before = "~1" if sync_commit else ""
+
+        current_commit = commits[-1]
+        prev_commit = commits[0]
+
+        fileset = list(self._git(git_workdir + ['diff', '--name-only', '{}{}..{}'.format(prev_commit, one_commit_before, current_commit), "--"]))
+
+        # get file list from diff
+        logging.info(':: start debug fileset ::')
+        logging.info('\n'.join(fileset))
+        logging.info(':: end debug fileset ::')
+
+        # SUBMODULES
+
+        if git_dir is not None:
+            git_modules_path = os.path.join(git_dir, ".gitmodules")
+        else:
+            git_modules_path = ".gitmodules"
+
+        if os.path.exists(git_modules_path):
+            # list submodules
+            config_submodule_args = ["config", "--file", ".gitmodules"]
+
+            # list all path entries in .gitmodules
+            submodule_entries = list(self._git(
+                git_workdir + config_submodule_args + ["--name-only", "--get-regexp", "submodule.*.path"]
+            ))
+
+            submodules_path = [
+                self._git(
+                    git_workdir + config_submodule_args + ["--get", value]
+                ).out()
+                for value in submodule_entries
+            ]
+
+            # remove submodule paths from changed fileset
+            fileset = [e for e in fileset if e not in submodules_path]
+
+            logging.info(':: found submodules at paths ::')
+            logging.info('\n'.join(submodules_path))
+
+            ls_tree_output_regex = re.compile(r"^\d+ commit (?P<rev>[a-z0-9]+)\t.*$")
+            for submodule_path in submodules_path:
+                submodule_entry_at_current = self._git(git_workdir + ["ls-tree", current_commit, "--", submodule_path]).out()
+                if not submodule_entry_at_current:
+                    # submodule was probably removed
+                    fileset.append(submodule_path)
+                    continue
+
+                submodule_entry_at_prev = self._git(git_workdir + ["ls-tree", prev_commit, "--", submodule_path]).out()
+                if not submodule_entry_at_prev:
+                    # submodule was added at this commit
+                    submodule_entry_at_prev = submodule_entry_at_current
+
+                submodule_prev_commit = ls_tree_output_regex.match(
+                    submodule_entry_at_prev
+                )["rev"]
+
+                submodule_current_commit = ls_tree_output_regex.match(
+                    submodule_entry_at_current
+                )["rev"]
+
+                submodule_git_dir = submodule_path
+                if git_dir is not None:
+                    submodule_git_dir = f"{git_dir}/{submodule_path}"
+
+                submodule_fileset = self._get_git_fileset(
+                    [submodule_prev_commit, submodule_current_commit],
+                    sync_commit, submodule_git_dir,
+                )
+
+                fileset.extend(
+                    f"{submodule_path}/{file}"
+                    for file in submodule_fileset
+                )
+
+        return fileset
+
+    def _export_changes(self, tag_prefix, commits, sync_commit, auto_submit):
         p4 = self._p4
         git = self._git
         root = self._work_tree
         self._info(_('Syncing perforce'))
-        p4('sync "{}/..."', root).check()
+        p4(['sync', "{}/...".format(root)]).check()
 
         assert(any(commits))
         if self._squash_commits:
-            desc_command = 'show -s --pretty=format:\'%%s <%%an@%%h>%%n%%b\' %s'
-            description = [git(desc_command % it).out() for it in commits]
+            desc_command = ['show', '-s', '--pretty=format:%s <%an@%h>%n%b']
+            description = [git(desc_command + [it]).out() for it in commits]
             description.reverse()
             description = '\n'.join(description)
-            description = description.replace("'", "\\'")
-            description = description.replace('"', '\\"')
             description = self._strip_description_comments(description)
-            self._export_change(tag_prefix, commits[-1], description, auto_submit)
+            if len(description) > 3900: # limit desc size because it breaks cmd on windows when exceding a certain amount of chars
+                description = description[:3900]
+            self._export_change(tag_prefix, commits[-1], description, self._get_git_fileset(commits, sync_commit), auto_submit)
         else:
             for commit in commits:
-                description = git('show -s --pretty=format:\'%s <%an@%h>%n%b\' ').out()
+                description = git(['show', '-s', '--pretty=format:%s <%an@%h>%n%b']).out()
                 description = self._strip_description_comments(description)
-                self._export_change(tag_prefix, commit, description, auto_submit)
+                self._export_change(tag_prefix, commit, description, self._get_git_fileset([commit], sync_commit), auto_submit)
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
         if self._previous_head is not None:
-            git('symbolic-ref HEAD refs/heads/{}', self._previous_head)
+            git(['symbolic-ref', 'HEAD', 'refs/heads/{}'.format(self._previous_head)])
