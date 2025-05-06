@@ -1,7 +1,7 @@
 [project]
 name = "pergit"
 description = "Git and Perforce synchronization utility"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 readme = "README.md"
 license = "MIT"
 authors = [
