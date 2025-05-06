@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright © 2019 Dontnod Entertainment
 
 # Permission is hereby granted, free of charge, to any person obtaining

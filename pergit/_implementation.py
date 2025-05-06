@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright © 2019 Dontnod Entertainment
 
 # Permission is hereby granted, free of charge, to any person obtaining
@@ -57,7 +56,7 @@ class PergitError(Exception):
         return self._message
 
 
-class Pergit(object):
+class Pergit:
     """Imports a Perforce depot into a git branch"""
 
     def __init__(
@@ -118,7 +117,7 @@ class Pergit(object):
     def _load_argument(self, key, value, default_value, allow_none=False):
         git = self._git
         branch_key = self._branch.replace("/", ".")
-        config_key = "pergit.{}.{}".format(branch_key, key)
+        config_key = f"pergit.{branch_key}.{key}"
         if value is None:
             value = git(["config", config_key])
             if value:
@@ -168,7 +167,7 @@ class Pergit(object):
 
         tag_prefix = self._load_argument("tag-prefix", tag_prefix, self._branch)
 
-        git(["symbolic-ref", "HEAD", "refs/heads/{}".format(self._branch)])
+        git(["symbolic-ref", "HEAD", f"refs/heads/{self._branch}"])
 
         sync_commit, sync_changelist = self._get_latest_sync_state(tag_prefix)
         git_changes, perforce_changes = self._get_changes(changelist, sync_commit, sync_changelist)
@@ -185,7 +184,7 @@ class Pergit(object):
 
     def _get_latest_sync_state(self, tag_prefix):
         git = self._git
-        latest_tag = git(["describe", "--tags", "--match", "{}@*".format(tag_prefix)])
+        latest_tag = git(["describe", "--tags", "--match", f"{tag_prefix}@*"])
         if not latest_tag:
             return None, None
         latest_tag = latest_tag.out()
@@ -195,7 +194,7 @@ class Pergit(object):
             self._error("Commit {} seems to have a changelist tag, but it'sformat is incorrect.")
 
         changelist = match.group("changelist")
-        commit = git(["show", "--pretty=format:%H", "--no-patch", "-n1", "{}@{}".format(tag_prefix, changelist)])
+        commit = git(["show", "--pretty=format:%H", "--no-patch", "-n1", f"{tag_prefix}@{changelist}"])
         return commit.out(), changelist
 
     def _get_changes(self, changelist, sync_commit, sync_changelist):
@@ -214,7 +213,7 @@ class Pergit(object):
                 )
             )
 
-        changelists = self._p4(["changes", "-l", "{}/...@{},#head".format(self._work_tree, changelist)])
+        changelists = self._p4(["changes", "-l", f"{self._work_tree}/...@{changelist},#head"])
 
         changelists = list(reversed(changelists))
 
@@ -225,7 +224,7 @@ class Pergit(object):
             changelists = changelists[1:]
 
         if sync_commit:
-            commits = self._git(["log", "--pretty=format:%H", "--ancestry-path", "{}..HEAD".format(sync_commit)])
+            commits = self._git(["log", "--pretty=format:%H", "--ancestry-path", f"{sync_commit}..HEAD"])
         else:
             commits = self._git(["log", "--pretty=format:%H"])
 
@@ -238,7 +237,7 @@ class Pergit(object):
         return [], changelists
 
     def _get_perforce_changes(self, changelist):
-        changelists = self._p4(["changes", "-l", "{}/...@{},#head".format(self._work_tree, changelist)])
+        changelists = self._p4(["changes", "-l", f"{self._work_tree}/...@{changelist},#head"])
 
         return reversed(changelists)
 
@@ -263,7 +262,7 @@ class Pergit(object):
         # Commit event if there are no changes, to keep P4 C.L description
         # and corresponding tag in git history
         author = self._get_author(change, user_cache)
-        date = "%s %s" % (change["time"], utc_offset)
+        date = f"{change['time']} {utc_offset}"
         with git.with_env(GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date):
             git(["commit", "--allow-empty", "--author", author, "-m", description]).check()
 
@@ -279,7 +278,7 @@ class Pergit(object):
         else:
             assert len(user) == 1
             user = user[0]
-            author = "%s <%s>" % (user["FullName"], user["Email"])
+            author = f"{user['FullName']} <{user['Email']}>"
 
         return author
 
@@ -314,11 +313,11 @@ class Pergit(object):
             git(["clean", "-fd"]).check()
 
         # reconcile everything
-        modified_paths = "%s/..." % root
+        modified_paths = f"{root}/..."
         # limit the scope of reconcile to files modified by Git to speed things up
         # only if command line length allows for it
         if fileset and not self.force_full_reconcile:
-            paths = " ".join(["%s/%s" % (root, file) for file in fileset])
+            paths = " ".join([f"{root}/{file}" for file in fileset])
             # cmd limit is arround 8000 char
             modified_paths = paths if len(paths) < 7500 else modified_paths
 
@@ -332,7 +331,7 @@ class Pergit(object):
                         self._info("ALF DEBUG Plugins: " + file_path)
             # debug client output to make sure client specs are what they should be
             p4(["client", "-o"]).out()
-            reconcile_alf_debug_path = "%s/Game/ALF/Plugins/..." % root
+            reconcile_alf_debug_path = f"{root}/Game/ALF/Plugins/..."
             p4(["reconcile", "-n", reconcile_alf_debug_path]).out()
         except Exception:
             self._warn("ALF debug failed")
@@ -340,7 +339,7 @@ class Pergit(object):
         with p4.ignore("**/.git"):
             if self.simulate:
                 p4(["reconcile", "-n", modified_paths]).out()
-                self._info('SIMULATE :: submit -d "%s" "%s/..."' % (description, root))
+                self._info(f'SIMULATE :: submit -d "{description}" "{root}/..."')
             else:
                 reconcile_output = p4(["reconcile", modified_paths]).out()
                 _reconcile_warning_flag = " !! "
@@ -393,8 +392,13 @@ class Pergit(object):
 
         fileset = list(
             self._git(
-                git_workdir
-                + ["diff", "--name-only", "{}{}..{}".format(prev_commit, one_commit_before, current_commit), "--"]
+                [
+                    *git_workdir,
+                    "diff",
+                    "--name-only",
+                    f"{prev_commit}{one_commit_before}..{current_commit}",
+                    "--",
+                ]
             )
         )
 
@@ -416,7 +420,7 @@ class Pergit(object):
 
             # list all path entries in .gitmodules
             submodule_entries = list(
-                self._git(git_workdir + config_submodule_args + ["--name-only", "--get-regexp", "submodule.*.path"])
+                self._git([*git_workdir, *config_submodule_args, "--name-only", "--get-regexp", "submodule.*.path"])
             )
 
             submodules_path = [
@@ -467,7 +471,7 @@ class Pergit(object):
         git = self._git
         root = self._work_tree
         self._info(_("Syncing perforce"))
-        p4(["sync", "{}/...".format(root)]).check()
+        p4(["sync", f"{root}/..."]).check()
 
         assert any(commits)
         if self._squash_commits:
@@ -494,4 +498,4 @@ class Pergit(object):
     def __exit__(self, ex_type, ex_value, ex_traceback):
         git = self._git
         if self._previous_head is not None:
-            git(["symbolic-ref", "HEAD", "refs/heads/{}".format(self._previous_head)])
+            git(["symbolic-ref", "HEAD", f"refs/heads/{self._previous_head}"])

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright © 2019 Dontnod Entertainment
 
 # Permission is hereby granted, free of charge, to any person obtaining
@@ -27,7 +26,6 @@ import os
 import re
 import subprocess
 import tempfile
-from typing import Type
 from P4 import P4 as P4Python
 
 import pergit
@@ -35,7 +33,7 @@ import pergit
 P4_FIELD_RE = re.compile(r"^\.\.\. (?P<key>\w+) (?P<value>.*)$")
 
 
-class VCSCommand(object):
+class VCSCommand:
     """Object representing a git or perforce commmand"""
 
     def __init__(self, command: list[str], env):
@@ -91,8 +89,8 @@ class VCSCommand(object):
                 logger.debug(" %s %s", prefix, line)
 
 
-class _VCS(object):
-    def __init__(self, command_class: Type[VCSCommand], command_prefix: list[str]):
+class _VCS:
+    def __init__(self, command_class: type[VCSCommand], command_prefix: list[str]):
         self._command_class = command_class
         self._command_prefix = command_prefix
         self._env_stack = []
@@ -225,7 +223,7 @@ class P4(_VCS):
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
             tmp_path = tmp_file.name
             for it in patterns:
-                tmp_file.write("%s\n" % it)
+                tmp_file.write(f"{it}\n")
         ignore_env = tmp_path
         if "P4IGNORE" in os.environ:
             ignore_env += os.environ["P4IGNORE"]
@@ -270,6 +268,6 @@ class Git(_VCS):
 
         if config:
             for option, value in config.items():
-                command_prefix += ["-c", "%s=%s" % (option, value)]
+                command_prefix += ["-c", f"{option}={value}"]
 
         super().__init__(GitCommand, command_prefix)

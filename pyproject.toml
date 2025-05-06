@@ -55,6 +55,11 @@ dev_template = "{tag}.post{ccount}"
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.lint]
+extend-select = [
+    "UP",
+]
+
 [tool.ruff.lint.isort]
 force-single-line = true
 
