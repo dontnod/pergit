@@ -24,14 +24,13 @@ from __future__ import annotations
 
 import gettext
 import logging
-from pathlib import Path
+import os
 import re
 import sys
+from pathlib import Path
 
 import pergit
 import pergit.vcs
-
-import os
 
 _ = gettext.gettext
 _TAG_RE = re.compile(r"^.*@(?P<changelist>\d+)")

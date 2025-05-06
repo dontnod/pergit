@@ -59,6 +59,7 @@ line-length = 120
 extend-select = [
     "UP",
     "PTH",
+    "I",
 ]
 
 [tool.ruff.lint.isort]
