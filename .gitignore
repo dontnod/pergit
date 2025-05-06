@@ -2,3 +2,4 @@
 *.pyc
 .vscode
 pergit.egg-info/*
+build/
