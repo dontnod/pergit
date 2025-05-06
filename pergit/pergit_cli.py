@@ -19,7 +19,7 @@
 # LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-''' gitp4 entry '''
+"""gitp4 entry"""
 
 import argparse
 import logging
@@ -28,8 +28,9 @@ import sys
 
 import pergit
 
+
 def main(argv=None):
-    ''' gitp4 entry point '''
+    """gitp4 entry point"""
 
     if argv is None:
         argv = sys.argv
@@ -39,7 +40,7 @@ def main(argv=None):
 
     logging.basicConfig()
 
-    logging_format = '%(message)s'
+    logging_format = "%(message)s"
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
@@ -49,18 +50,18 @@ def main(argv=None):
         logging.basicConfig(format=logging_format, level=logging.INFO)
 
     try:
-        with pergit.Pergit(branch=args.branch,
-                           squash_commits=args.squash_commits,
-                           strip_comments=args.strip_comments,
-                           p4_port=args.p4_port,
-                           p4_user=args.p4_user,
-                           p4_client=args.p4_client,
-                           p4_password=args.p4_password,
-                           force_full_reconcile=args.force_full_reconcile,
-                           simulate=args.simulate) as impl:
-            impl.sychronize(changelist=args.changelist,
-                            tag_prefix=args.tag_prefix,
-                            auto_submit=args.auto_submit)
+        with pergit.Pergit(
+            branch=args.branch,
+            squash_commits=args.squash_commits,
+            strip_comments=args.strip_comments,
+            p4_port=args.p4_port,
+            p4_user=args.p4_user,
+            p4_client=args.p4_client,
+            p4_password=args.p4_password,
+            force_full_reconcile=args.force_full_reconcile,
+            simulate=args.simulate,
+        ) as impl:
+            impl.sychronize(changelist=args.changelist, tag_prefix=args.tag_prefix, auto_submit=args.auto_submit)
 
             return 0
     except pergit.PergitError as error:
@@ -68,68 +69,61 @@ def main(argv=None):
         logger.error(error)
     except subprocess.CalledProcessError as error:
         logger = logging.getLogger(pergit.LOGGER_NAME)
-        logger.error('Error while runnig command "%s" :\n%s', ' '.join(error.cmd), error.stderr)
+        logger.error('Error while runnig command "%s" :\n%s', " ".join(error.cmd), error.stderr)
 
     return -1
+
 
 def _get_parser():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('branch',
-                        help='Branch name where to import changes. Defaults'
-                             'to current branch, will be created if it '
-                             'Doesn\'t exists',
-                        metavar='<git-branch>',
-                        nargs='?',
-                        default=None)
+    parser.add_argument(
+        "branch",
+        help="Branch name where to import changes. Defaultsto current branch, will be created if it Doesn't exists",
+        metavar="<git-branch>",
+        nargs="?",
+        default=None,
+    )
 
-    parser.add_argument('--verbose',
-                        help='Enable verbose mode',
-                        action='store_true')
+    parser.add_argument("--verbose", help="Enable verbose mode", action="store_true")
 
-    parser.add_argument('--p4-port',
-                        help='Perforce server')
+    parser.add_argument("--p4-port", help="Perforce server")
 
-    parser.add_argument('--p4-user',
-                        help='Perforce user')
+    parser.add_argument("--p4-user", help="Perforce user")
 
-    parser.add_argument('--p4-client',
-                        help='Perforce workspace')
+    parser.add_argument("--p4-client", help="Perforce workspace")
 
-    parser.add_argument('--p4-password',
-                        help='Perforce password')
+    parser.add_argument("--p4-password", help="Perforce password")
 
-    parser.add_argument('--squash-commits',
-                        help='Submits all git commits in one changelist, rather than one commit per changelist',
-                        action='store_true')
+    parser.add_argument(
+        "--squash-commits",
+        help="Submits all git commits in one changelist, rather than one commit per changelist",
+        action="store_true",
+    )
 
-    parser.add_argument('--changelist',
-                        help='Import changes starting at this revision',
-                        default=None)
+    parser.add_argument("--changelist", help="Import changes starting at this revision", default=None)
 
-    parser.add_argument('--tag-prefix',
-                        help='Prefix for Perforce C.L tags (defaults to branch',
-                        default=None)
+    parser.add_argument("--tag-prefix", help="Prefix for Perforce C.L tags (defaults to branch", default=None)
 
-    parser.add_argument('--auto-submit',
-                        help='Submit to perforce server without asking for user validation',
-                        action='store_true')
+    parser.add_argument(
+        "--auto-submit", help="Submit to perforce server without asking for user validation", action="store_true"
+    )
 
-    parser.add_argument('--strip-comments',
-                        help='Remove every live leaded by "#" from the log',
-                        action='store_true')
+    parser.add_argument("--strip-comments", help='Remove every live leaded by "#" from the log', action="store_true")
 
-    parser.add_argument('--force-full-reconcile',
-                        help='Force perforce reconcile over full workspace',
-                        action='store_true',
-                        default=False)
+    parser.add_argument(
+        "--force-full-reconcile",
+        help="Force perforce reconcile over full workspace",
+        action="store_true",
+        default=False,
+    )
 
-    parser.add_argument('--simulate',
-                        help='Perform a dry run with no submit nor push',
-                        action='store_true',
-                        default=False)
+    parser.add_argument(
+        "--simulate", help="Perform a dry run with no submit nor push", action="store_true", default=False
+    )
 
     return parser
+
 
 if __name__ == "__main__":
     sys.exit(main())
