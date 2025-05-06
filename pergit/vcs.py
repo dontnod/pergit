@@ -26,6 +26,7 @@ import os
 import re
 import subprocess
 import tempfile
+
 from P4 import P4 as P4Python
 
 import pergit
@@ -218,18 +219,17 @@ class P4(_VCS):
     @contextlib.contextmanager
     def ignore(self, *patterns):
         """Ignore specified patterns for every calls in a with scope
-        for this P4 instance"""
+        for this P4 instance
+        """
         tmp_path = None
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(mode="w") as tmp_file:
             tmp_path = tmp_file.name
             for it in patterns:
                 tmp_file.write(f"{it}\n")
-        ignore_env = tmp_path
-        if "P4IGNORE" in os.environ:
-            ignore_env += os.environ["P4IGNORE"]
-        with self.with_env(P4IGNORE=ignore_env):
-            yield
-        os.remove(tmp_path)
+
+            ignore_env = tmp_path + os.environ.get("P4IGNORE", "")
+            with self.with_env(P4IGNORE=ignore_env):
+                yield
 
 
 class GitCommand(VCSCommand):

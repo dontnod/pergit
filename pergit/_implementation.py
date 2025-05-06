@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import gettext
 import logging
+from pathlib import Path
 import re
 import sys
 
@@ -326,7 +327,7 @@ class Pergit:
             # List Game/ALF/Plugins to make sure file are there at pergit time
             for dp, dn, filenames in os.walk(root):
                 for f in filenames:
-                    file_path = os.path.join(dp, f).replace("\\", "/")
+                    file_path = Path(dp, f).as_posix()
                     if "Game/ALF/Plugins" in file_path:
                         self._info("ALF DEBUG Plugins: " + file_path)
             # debug client output to make sure client specs are what they should be
@@ -379,9 +380,9 @@ class Pergit:
     def _get_git_fileset(self, commits, sync_commit, git_dir: str | None = None):
         assert len(commits) > 0
 
-        git_workdir = []
-        if git_dir is not None:
-            git_workdir = ["-C", git_dir]
+        workdir = Path(git_dir) if git_dir is not None else Path()
+
+        git_workdir = ["-C", str(workdir)]
 
         # get diff files from regular repo, does not include possible submodules
         # we're syncing whole repo history from initial commit when no sync occured yet, do not try to fetch previous commit
@@ -409,12 +410,9 @@ class Pergit:
 
         # SUBMODULES
 
-        if git_dir is not None:
-            git_modules_path = os.path.join(git_dir, ".gitmodules")
-        else:
-            git_modules_path = ".gitmodules"
+        git_modules_path = workdir / ".gitmodules"
 
-        if os.path.exists(git_modules_path):
+        if git_modules_path.exists():
             # list submodules
             config_submodule_args = ["config", "--file", ".gitmodules"]
 
