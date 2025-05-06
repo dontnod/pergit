@@ -21,11 +21,4 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """Pergit main module"""
 
-import logging
-
-import pergit._implementation
-
-from ._implementation import Pergit
-from ._implementation import PergitError
-
 LOGGER_NAME = "pergit"
