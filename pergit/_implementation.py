@@ -283,7 +283,6 @@ class Pergit:
         return author
 
     def _tag_commit(self, tag_prefix, change, description=None):
-        # git = self._git
         git = pergit.vcs.Git()
         tag = "{}@{}".format(tag_prefix, change["change"])
         tag_command = ["tag", "-f", tag]
@@ -302,7 +301,6 @@ class Pergit:
                 git(["push", "--verbose", remote, tag]).out()
 
     def _export_change(self, tag_prefix, commit, description, fileset, auto_submit):
-        # git = self._git
         git = pergit.vcs.Git()
         p4 = self._p4
         root = self._work_tree
@@ -433,14 +431,14 @@ class Pergit:
             ls_tree_output_regex = re.compile(r"^\d+ commit (?P<rev>[a-z0-9]+)\t.*$")
             for submodule_path in submodules_path:
                 submodule_entry_at_current = self._git(
-                    git_workdir + ["ls-tree", current_commit, "--", submodule_path]
+                    [*git_workdir, "ls-tree", current_commit, "--", submodule_path]
                 ).out()
                 if not submodule_entry_at_current:
                     # submodule was probably removed
                     fileset.append(submodule_path)
                     continue
 
-                submodule_entry_at_prev = self._git(git_workdir + ["ls-tree", prev_commit, "--", submodule_path]).out()
+                submodule_entry_at_prev = self._git([*git_workdir, "ls-tree", prev_commit, "--", submodule_path]).out()
                 if not submodule_entry_at_prev:
                     # submodule was added at this commit
                     submodule_entry_at_prev = submodule_entry_at_current
@@ -473,7 +471,7 @@ class Pergit:
         assert any(commits)
         if self._squash_commits:
             desc_command = ["show", "-s", "--pretty=format:%s <%an@%h>%n%b"]
-            description = [git(desc_command + [it]).out() for it in commits]
+            description = [git([*desc_command, it]).out() for it in commits]
             description.reverse()
             description = "\n".join(description)
             description = self._strip_description_comments(description)

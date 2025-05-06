@@ -60,6 +60,7 @@ extend-select = [
     "UP",
     "PTH",
     "I",
+    "RUF",
 ]
 
 [tool.ruff.lint.isort]
