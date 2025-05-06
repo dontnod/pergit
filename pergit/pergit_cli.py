@@ -25,7 +25,9 @@ import logging
 import subprocess
 import sys
 
-import pergit
+from . import LOGGER_NAME
+from ._implementation import Pergit
+from ._implementation import PergitError
 
 
 def main(argv=None):
@@ -49,7 +51,7 @@ def main(argv=None):
         logging.basicConfig(format=logging_format, level=logging.INFO)
 
     try:
-        with pergit.Pergit(
+        with Pergit(
             branch=args.branch,
             squash_commits=args.squash_commits,
             strip_comments=args.strip_comments,
@@ -63,12 +65,12 @@ def main(argv=None):
             impl.sychronize(changelist=args.changelist, tag_prefix=args.tag_prefix, auto_submit=args.auto_submit)
 
             return 0
-    except pergit.PergitError as error:
-        logger = logging.getLogger(pergit.LOGGER_NAME)
-        logger.error(error)
+    except PergitError as error:
+        logger = logging.getLogger(LOGGER_NAME)
+        logger.exception("", exc_info=error)
     except subprocess.CalledProcessError as error:
-        logger = logging.getLogger(pergit.LOGGER_NAME)
-        logger.error('Error while runnig command "%s" :\n%s', " ".join(error.cmd), error.stderr)
+        logger = logging.getLogger(LOGGER_NAME)
+        logger.exception('Error while runnig command "%s" :\n%s', " ".join(error.cmd), error.stderr, exc_info=error)
 
     return -1
 
