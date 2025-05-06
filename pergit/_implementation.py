@@ -334,7 +334,7 @@ class Pergit(object):
             p4(["client", "-o"]).out()
             reconcile_alf_debug_path = "%s/Game/ALF/Plugins/..." % root
             p4(["reconcile", "-n", reconcile_alf_debug_path]).out()
-        except:
+        except Exception:
             self._warn("ALF debug failed")
 
         with p4.ignore("**/.git"):
