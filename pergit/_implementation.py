@@ -172,7 +172,11 @@ class Pergit:
         sync_commit, sync_changelist = self._get_latest_sync_state(tag_prefix)
         git_changes, perforce_changes = self._get_changes(changelist, sync_commit, sync_changelist)
         if perforce_changes and git_changes:
-            self._error(_("You have changes both from P4 and git side, refusing to sync"))
+            self._error(
+                _("You have changes both from P4 and git side, refusing to sync.\nperforce: {perforce}\ngit: {git}\n"),
+                perforce=perforce_changes,
+                git=git_changes,
+            )
         elif perforce_changes:
             assert not git_changes
             self._import_changes(tag_prefix, perforce_changes)
