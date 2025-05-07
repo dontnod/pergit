@@ -180,11 +180,7 @@ class Pergit:
         sync_commit, sync_changelist = self._get_latest_sync_state(tag_prefix)
         git_changes, perforce_changes = self._get_changes(changelist, sync_commit, sync_changelist)
         if perforce_changes and git_changes:
-            self._error(
-                _("You have changes both from P4 and git side, refusing to sync.\nperforce: {perforce}\ngit: {git}\n"),
-                perforce=perforce_changes,
-                git=git_changes,
-            )
+            self._failure_both_side_common_changes(perforce_changes, git_changes)
         elif perforce_changes:
             assert not git_changes
             self._import_changes(tag_prefix, perforce_changes)
@@ -548,3 +544,76 @@ class Pergit:
         git = self._git
         if self._previous_head is not None:
             git(["symbolic-ref", "HEAD", f"refs/heads/{self._previous_head}"])
+
+    def _failure_both_side_common_changes(
+        self,
+        p4_changes: list[dict[str, str]],
+        git_changes: list[str],
+    ) -> NoReturn:
+        # TODO(tdesveaux): Handle submodules
+        files_for_git_commits = {
+            git_commit: set(
+                Path(p)
+                for p in self._git(
+                    [
+                        "diff-tree",
+                        "--no-commit-id",
+                        "--name-only",
+                        "-r",  # recurse, no arg long form
+                        git_commit,
+                    ]
+                )
+            )
+            for git_commit in git_changes
+        }
+        files_for_p4_changes = {
+            p4_change["change"]: set(
+                Path(change["clientFile"])
+                for change in self._p4(["fstat", f"{self._work_tree}/...@{p4_change['change']},{p4_change['change']}"])
+            )
+            for p4_change in p4_changes
+        }
+
+        all_git_files: set[Path] = set()
+        for files in files_for_git_commits.values():
+            all_git_files.update(files)
+
+        all_p4_files: set[Path] = set()
+        for files in files_for_p4_changes.values():
+            all_p4_files.update(files)
+
+
+        problematic_files = all_git_files.intersection(all_p4_files)
+
+        if problematic_files:
+            self.logger.error("Found problematic files in both P4 and Git.\nFiles:\n%s", "".join(f"\t- {file}\n" for file in problematic_files))
+
+            problematic_git_commits = {
+                commit: commit_problematic_files
+                for commit, files in files_for_git_commits.items()
+                if (commit_problematic_files := problematic_files.intersection(files))
+            }
+            self.logger.error("Problematic files found in Git commits:\n%s", "".join(
+                f"\t- {commit}:\n{fmt_files}"
+                for commit, files in problematic_git_commits.items()
+                if (fmt_files := ''.join(f'\t\t- {file}\n' for file in files))
+            ))
+
+            problematic_p4_commits = {
+                change: change_problematic_files
+                for change, files in files_for_p4_changes.items()
+                if (change_problematic_files := problematic_files.intersection(files))
+            }
+            self.logger.error("Problematic files found in P4 changes:\n%s", "".join(
+                f"\t- {change}:\n{fmt_files}"
+                for change, files in problematic_p4_commits.items()
+                if (fmt_files := ''.join(f'\t\t- {file}\n' for file in files))
+            ))
+        else:
+            self.logger.warning("Could not determine problematic files!")
+
+        self._error(
+            _("You have changes both from P4 and git side, refusing to sync."),
+            perforce=p4_changes,
+            git=git_changes,
+        )
