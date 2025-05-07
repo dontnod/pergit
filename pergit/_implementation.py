@@ -550,64 +550,25 @@ class Pergit:
         p4_changes: list[dict[str, str]],
         git_changes: list[str],
     ) -> NoReturn:
-        # TODO(tdesveaux): Handle submodules
-        files_for_git_commits = {
-            git_commit: set(
-                Path(p)
-                for p in self._git(
-                    [
-                        "diff-tree",
-                        "--no-commit-id",
-                        "--name-only",
-                        "-r",  # recurse, no arg long form
-                        git_commit,
-                    ]
-                )
-            )
-            for git_commit in git_changes
-        }
+        worktree = Path(self._work_tree)
+
         files_for_p4_changes = {
             p4_change["change"]: set(
-                Path(change["clientFile"])
-                for change in self._p4(["fstat", f"{self._work_tree}/...@{p4_change['change']},{p4_change['change']}"])
+                Path(change["clientFile"]).relative_to(worktree)
+                for change in self._p4(["fstat", f"{worktree}/...@{p4_change['change']},{p4_change['change']}"])
             )
             for p4_change in p4_changes
         }
-
-        all_git_files: set[Path] = set()
-        for files in files_for_git_commits.values():
-            all_git_files.update(files)
 
         all_p4_files: set[Path] = set()
         for files in files_for_p4_changes.values():
             all_p4_files.update(files)
 
-
-        problematic_files = all_git_files.intersection(all_p4_files)
-
-        if problematic_files:
-            self.logger.error("Found problematic files in both P4 and Git.\nFiles:\n%s", "".join(f"\t- {file}\n" for file in problematic_files))
-
-            problematic_git_commits = {
-                commit: commit_problematic_files
-                for commit, files in files_for_git_commits.items()
-                if (commit_problematic_files := problematic_files.intersection(files))
-            }
-            self.logger.error("Problematic files found in Git commits:\n%s", "".join(
-                f"\t- {commit}:\n{fmt_files}"
-                for commit, files in problematic_git_commits.items()
-                if (fmt_files := ''.join(f'\t\t- {file}\n' for file in files))
-            ))
-
-            problematic_p4_commits = {
-                change: change_problematic_files
-                for change, files in files_for_p4_changes.items()
-                if (change_problematic_files := problematic_files.intersection(files))
-            }
+        if all_p4_files:
             self.logger.error("Problematic files found in P4 changes:\n%s", "".join(
-                f"\t- {change}:\n{fmt_files}"
-                for change, files in problematic_p4_commits.items()
-                if (fmt_files := ''.join(f'\t\t- {file}\n' for file in files))
+                f"\t- CL {change}:\n{fmt_files}"
+                for change, files in files_for_p4_changes.items()
+                if files and (fmt_files := ''.join(f'\t\t- {file}\n' for file in files))
             ))
         else:
             self.logger.warning("Could not determine problematic files!")
