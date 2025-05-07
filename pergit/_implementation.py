@@ -467,6 +467,12 @@ class Pergit:
             self.logger.info("\n".join(submodules_path))
 
             ls_tree_output_regex = re.compile(r"^\d+ commit (?P<rev>[a-z0-9]+)\t.*$")
+
+            def _rev_from_ls_tree_out(entry: str) -> str:
+                _match = ls_tree_output_regex.match(submodule_entry_at_prev)
+                assert _match is not None
+                return _match["rev"]
+
             for submodule_path in submodules_path:
                 submodule_entry_at_current = self._git(
                     [*git_workdir, "ls-tree", current_commit, "--", submodule_path]
@@ -481,16 +487,15 @@ class Pergit:
                     # submodule was added at this commit
                     submodule_entry_at_prev = submodule_entry_at_current
 
-                submodule_prev_commit = ls_tree_output_regex.match(submodule_entry_at_prev)["rev"]  # type: ignore[index]
-
-                submodule_current_commit = ls_tree_output_regex.match(submodule_entry_at_current)["rev"]  # type: ignore[index]
-
                 submodule_git_dir = submodule_path
                 if git_dir is not None:
                     submodule_git_dir = f"{git_dir}/{submodule_path}"
 
                 submodule_fileset = self._get_git_fileset(
-                    [submodule_prev_commit, submodule_current_commit],
+                    [
+                        _rev_from_ls_tree_out(submodule_entry_at_prev),
+                        _rev_from_ls_tree_out(submodule_entry_at_current),
+                    ],
                     sync_commit,
                     submodule_git_dir,
                 )

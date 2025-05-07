@@ -20,6 +20,8 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """Git and Perforce call utilities"""
 
+from __future__ import annotations
+
 import contextlib
 import logging
 import os
