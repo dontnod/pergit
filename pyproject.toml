@@ -63,6 +63,7 @@ extend-select = [
     "I",
     "RUF",
     "TC",
+    "LOG",
 ]
 
 [tool.ruff.lint.isort]

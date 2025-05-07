@@ -81,12 +81,13 @@ class Pergit:
         force_full_reconcile: bool = False,
         simulate: bool = False,
     ) -> None:
+        self.logger = logging.getLogger(pergit.LOGGER_NAME)
         self.force_full_reconcile = force_full_reconcile
         self.simulate = simulate
         self._git = pergit.vcs.Git(config={"core.fileMode": "false"})
 
         if self.simulate:
-            self._info("*** SIMULATING PERGIT ***")
+            self.logger.info("*** SIMULATING PERGIT ***")
 
         if branch is None:
             branch = self._git(["rev-parse", "--abbrev-ref", "HEAD"]).out()
@@ -111,14 +112,6 @@ class Pergit:
         self._p4_submit = pergit.vcs.P4(port=p4_port, user=p4_user, client=p4_client, password=p4_password)
 
         self._previous_head: str | None = None
-
-    def _info(self, fmt: str, *args: Any, **kwargs: Any) -> None:
-        """Logs an info"""
-        logging.getLogger(pergit.LOGGER_NAME).info(fmt, *args, **kwargs)
-
-    def _warn(self, fmt: str, *args: Any, **kwargs: Any) -> None:
-        """Logs a warning"""
-        logging.getLogger(pergit.LOGGER_NAME).warning(fmt, *args, **kwargs)
 
     def _error(self, fmt: str, *args: Any, **kwargs: Any) -> NoReturn:
         """Logs an error"""
@@ -151,7 +144,7 @@ class Pergit:
 
         # Reverting and cleaning files in order to not commit trash to git
         p4 = self._p4
-        self._info("Preparing Git and Perforce workspaces")
+        self.logger.info("Preparing Git and Perforce workspaces")
         p4(["revert", p4_root]).check()
 
         git = self._git
@@ -199,7 +192,7 @@ class Pergit:
             assert not perforce_changes
             self._export_changes(tag_prefix, git_changes, sync_commit, auto_submit)
         else:
-            self._warn("Nothing to sync")
+            self.logger.warning("Nothing to sync")
 
     def _get_latest_sync_state(self, tag_prefix: str | None) -> tuple[str | None, str | None]:
         git = self._git
@@ -277,7 +270,7 @@ class Pergit:
     def _import_changelist(self, change: dict[str, Any], utc_offset: str, user_cache: dict[str, str]) -> None:
         p4 = self._p4
         git = self._git
-        self._info(_("Syncing then committing changelist %s : %s"), change["change"], change["desc"])
+        self.logger.info(_("Syncing then committing changelist %s : %s"), change["change"], change["desc"])
         p4(["sync", "{}/...@{}".format(self._work_tree, change["change"])]).check()
         description = change["desc"]
         git(["add", "."]).check()
@@ -316,12 +309,12 @@ class Pergit:
             tag_command.extend(["-m", description])
 
         if self.simulate:
-            self._info("SIMULATE :: %s", tag_command)
+            self.logger.info("SIMULATE :: %s", tag_command)
         if not self.simulate:
             if git(["tag", "-l", tag]).out():
-                self._warn(_("Tag %s already existed, it will be replaced."), tag)
+                self.logger.warning(_("Tag %s already existed, it will be replaced."), tag)
             git(tag_command).out()
-            self._info("Pushing tags...")
+            self.logger.info("Pushing tags...")
             for remote in git(["remote"]).out().splitlines(keepends=False):
                 git(["push", "--verbose", remote, tag]).out()
 
@@ -337,7 +330,7 @@ class Pergit:
         p4 = self._p4
         root = self._work_tree
 
-        self._info(_("Preparing commit %s : %s"), commit[:10], description)
+        self.logger.info(_("Preparing commit %s : %s"), commit[:10], description)
         if not auto_submit:  # buildbot takes care of cleaning workspace
             git(["checkout", "-f", "--recurse-submodules", commit]).check()
             git(["clean", "-fd"]).check()
@@ -358,18 +351,18 @@ class Pergit:
                 for f in filenames:
                     file_path = Path(dp, f).as_posix()
                     if "Game/ALF/Plugins" in file_path:
-                        self._info("ALF DEBUG Plugins: " + file_path)
+                        self.logger.info("ALF DEBUG Plugins: " + file_path)
             # debug client output to make sure client specs are what they should be
             p4(["client", "-o"]).out()
             reconcile_alf_debug_path = f"{root}/Game/ALF/Plugins/..."
             p4(["reconcile", "-n", reconcile_alf_debug_path]).out()
         except Exception:
-            self._warn("ALF debug failed")
+            self.logger.warning("ALF debug failed")
 
         with p4.ignore("**/.git"):
             if self.simulate:
                 p4(["reconcile", "-n", modified_paths]).out()
-                self._info(f'SIMULATE :: submit -d "{description}" "{root}/..."')
+                self.logger.info(f'SIMULATE :: submit -d "{description}" "{root}/..."')
             else:
                 reconcile_output = p4(["reconcile", modified_paths]).out()
                 _reconcile_warning_flag = " !! "
@@ -384,13 +377,13 @@ class Pergit:
 
         if not self.simulate:
             if not auto_submit:  # legacy behavior - not for buildbot
-                self._info("Submit is ready in default changelist.")
+                self.logger.info("Submit is ready in default changelist.")
                 while True:
                     char = sys.stdin.read(1)
                     if char == "s" or char == "S":
                         break
 
-            self._info("Submitting")
+            self.logger.info("Submitting")
             p4_submit = self._p4_submit
             p4_submit.submit(description)
 
@@ -438,9 +431,9 @@ class Pergit:
         )
 
         # get file list from diff
-        logging.info(":: start debug fileset ::")
-        logging.info("\n".join(fileset))
-        logging.info(":: end debug fileset ::")
+        self.logger.info(":: start debug fileset ::")
+        self.logger.info("\n".join(fileset))
+        self.logger.info(":: end debug fileset ::")
 
         # SUBMODULES
 
@@ -470,8 +463,8 @@ class Pergit:
             # remove submodule paths from changed fileset
             fileset = [e for e in fileset if e not in submodules_path]
 
-            logging.info(":: found submodules at paths ::")
-            logging.info("\n".join(submodules_path))
+            self.logger.info(":: found submodules at paths ::")
+            self.logger.info("\n".join(submodules_path))
 
             ls_tree_output_regex = re.compile(r"^\d+ commit (?P<rev>[a-z0-9]+)\t.*$")
             for submodule_path in submodules_path:
@@ -516,7 +509,7 @@ class Pergit:
         p4 = self._p4
         git = self._git
         root = self._work_tree
-        self._info(_("Syncing perforce"))
+        self.logger.info(_("Syncing perforce"))
         p4(["sync", f"{root}/..."]).check()
 
         assert any(commits)

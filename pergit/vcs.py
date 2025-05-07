@@ -47,8 +47,9 @@ class VCSCommand(Sequence[_T]):
     """Object representing a git or perforce commmand"""
 
     def __init__(self, command: list[str], env: Mapping[str, str]) -> None:
-        logger = logging.getLogger(pergit.LOGGER_NAME)
-        logger.debug("Running %s", subprocess.list2cmdline(command))
+        self.logger = logging.getLogger(f"{pergit.LOGGER_NAME}.{self.__class__.__name__}")
+        self.logger.debug("Running %s", subprocess.list2cmdline(command))
+
         self._result = subprocess.run(command, check=False, capture_output=True, env=env)
 
         def _decode(bytes_: bytes | None) -> str:
@@ -71,8 +72,8 @@ class VCSCommand(Sequence[_T]):
         self._stdout = _decode(self._result.stdout)
         self._stderr = _decode(self._result.stderr)
 
-        VCSCommand._debug_output(self._stdout, "--")
-        VCSCommand._debug_output(self._stderr, "!!")
+        self._debug_output(self._stdout, "--")
+        self._debug_output(self._stderr, "!!")
 
     def check(self) -> None:
         """Raises CalledProcessError if the command failed"""
@@ -91,12 +92,9 @@ class VCSCommand(Sequence[_T]):
     def __bool__(self) -> bool:
         return self._result.returncode == 0
 
-    @staticmethod
-    def _debug_output(output: str, prefix: str) -> None:
-        logger = logging.getLogger(pergit.LOGGER_NAME)
-        if output:
-            for line in output.strip().split("\n"):
-                logger.debug(" %s %s", prefix, line)
+    def _debug_output(self, output: str, prefix: str) -> None:
+        for line in output.splitlines(keepends=False):
+            self.logger.debug(" %s %s", prefix, line)
 
 
 VCSCommandType = TypeVar("VCSCommandType", bound=VCSCommand[Any])
@@ -107,6 +105,8 @@ class _VCS(Generic[VCSCommandType]):
         self._command_class = command_class
         self._command_prefix = command_prefix
         self._env_stack: list[dict[str, str]] = []
+
+        self.logger = logging.getLogger(f"{pergit.LOGGER_NAME}.{command_class.__name__}")
 
     @contextlib.contextmanager
     def with_env(self, **kwargs: str) -> Iterator[None]:
@@ -222,20 +222,21 @@ class P4(_VCS[P4Command]):
         if password is not None:
             command_prefix += ["-P", password]
         if port is not None:
-            command_prefix += ["-p", str(port)]
+            command_prefix += ["-p", port]
             self._p4python.port = port
         if user is not None:
             command_prefix += ["-u", user]
             self._p4python.user = user
 
-        logging.debug("Using P4Python: %s", repr(self._p4python))
-        self._p4python.connect()  # type: ignore[no-untyped-call]
         super().__init__(P4Command, command_prefix)
+
+        self.logger.debug("Using P4Python: %s", repr(self._p4python))
+        self._p4python.connect()  # type: ignore[no-untyped-call]
 
     def submit(self, desc: str) -> None:
         change = self._p4python.fetch_change()
         change._description = desc
-        logging.debug("%s", change)
+        self.logger.debug("%s", change)
         self._p4python.run_submit(change)  # type: ignore[no-untyped-call]
 
     @contextlib.contextmanager
