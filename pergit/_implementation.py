@@ -425,7 +425,7 @@ class Pergit:
         current_commit = commits[-1]
         prev_commit = commits[0]
 
-        fileset: list[str] = list(  # type: ignore[call-overload]
+        fileset = list(
             self._git(
                 [
                     *git_workdir,
@@ -451,7 +451,7 @@ class Pergit:
             config_submodule_args = ["config", "--file", ".gitmodules"]
 
             # list all path entries in .gitmodules
-            submodule_entries: list[str] = list(  # type: ignore[call-overload]
+            submodule_entries = list(
                 self._git(
                     [
                         *git_workdir,

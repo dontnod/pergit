@@ -28,8 +28,11 @@ import subprocess
 import tempfile
 from collections.abc import Iterator
 from collections.abc import Mapping
+from collections.abc import Sequence
+from typing import Any
 from typing import Generic
 from typing import TypeVar
+from typing import overload
 
 from P4 import P4 as P4Python
 
@@ -37,8 +40,10 @@ import pergit
 
 P4_FIELD_RE = re.compile(r"^\.\.\. (?P<key>\w+) (?P<value>.*)$")
 
+_T = TypeVar("_T")
 
-class VCSCommand:
+
+class VCSCommand(Sequence[_T]):
     """Object representing a git or perforce commmand"""
 
     def __init__(self, command: list[str], env: Mapping[str, str]) -> None:
@@ -94,7 +99,7 @@ class VCSCommand:
                 logger.debug(" %s %s", prefix, line)
 
 
-VCSCommandType = TypeVar("VCSCommandType", bound=VCSCommand)
+VCSCommandType = TypeVar("VCSCommandType", bound=VCSCommand[Any])
 
 
 class _VCS(Generic[VCSCommandType]):
@@ -122,7 +127,7 @@ class _VCS(Generic[VCSCommandType]):
         return self._command_class(command, env)
 
 
-class P4Command(VCSCommand):
+class P4Command(VCSCommand[dict[str, str]]):
     """Object representing a p4 command, containing records returned by p4"""
 
     _records: list[dict[str, str]] | None = None
@@ -134,10 +139,16 @@ class P4Command(VCSCommand):
         assert self._records is not None and len(self._records) == 1
         return self._records[0]
 
-    def __getitem__(self, index: int) -> dict[str, str]:
+    @overload
+    def __getitem__(self, key: int) -> dict[str, str]: ...
+
+    @overload
+    def __getitem__(self, key: slice[Any, Any, Any]) -> Sequence[dict[str, str]]: ...
+
+    def __getitem__(self, key: int | slice[Any, Any, Any]) -> dict[str, str] | Sequence[dict[str, str]]:
         self._eval_output()
         assert self._records is not None
-        return self._records[index]
+        return self._records[key]
 
     def __bool__(self) -> bool:
         return super().__bool__() and len(self) != 0
@@ -243,15 +254,21 @@ class P4(_VCS[P4Command]):
                 yield
 
 
-class GitCommand(VCSCommand):
+class GitCommand(VCSCommand[str]):
     """Object representing a git command, containing lines returned by it"""
 
     _lines: list[str] | None = None
 
-    def __getitem__(self, index: int) -> str:
+    @overload
+    def __getitem__(self, key: int) -> str: ...
+
+    @overload
+    def __getitem__(self, key: slice[Any, Any, Any]) -> Sequence[str]: ...
+
+    def __getitem__(self, key: int | slice[Any, Any, Any]) -> str | Sequence[str]:
         self._eval_output()
         assert self._lines is not None
-        return self._lines[index]
+        return self._lines[key]
 
     def __len__(self) -> int:
         self._eval_output()
