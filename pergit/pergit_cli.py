@@ -30,7 +30,7 @@ from ._implementation import Pergit
 from ._implementation import PergitError
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     """gitp4 entry point"""
 
     if argv is None:
@@ -75,7 +75,7 @@ def main(argv=None):
     return -1
 
 
-def _get_parser():
+def _get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
 
     parser.add_argument(

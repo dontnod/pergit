@@ -28,9 +28,19 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import NoReturn
+from typing import Self
 
 import pergit
 import pergit.vcs
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from collections.abc import Iterator
+    from collections.abc import Sequence
+    from types import TracebackType
 
 _ = gettext.gettext
 _TAG_RE = re.compile(r"^.*@(?P<changelist>\d+)")
@@ -45,14 +55,14 @@ _MSG_ARGUMENT_NOT_SET = _(
 class PergitError(Exception):
     """Error raised when a command fails"""
 
-    def __init__(self, message):
+    def __init__(self, message: str) -> None:
         super().__init__()
         self._message = message
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self._message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self._message
 
 
@@ -61,16 +71,16 @@ class Pergit:
 
     def __init__(
         self,
-        branch=None,
-        squash_commits=False,
-        strip_comments=False,
-        p4_port=None,
-        p4_user=None,
-        p4_client=None,
-        p4_password=None,
-        force_full_reconcile=False,
-        simulate=False,
-    ):
+        branch: str | None = None,
+        squash_commits: bool = False,
+        strip_comments: bool = False,
+        p4_port: str | None = None,
+        p4_user: str | None = None,
+        p4_client: str | None = None,
+        p4_password: str | None = None,
+        force_full_reconcile: bool = False,
+        simulate: bool = False,
+    ) -> None:
         self.force_full_reconcile = force_full_reconcile
         self.simulate = simulate
         self._git = pergit.vcs.Git(config={"core.fileMode": "false"})
@@ -100,29 +110,34 @@ class Pergit:
         # BB hack
         self._p4_submit = pergit.vcs.P4(port=p4_port, user=p4_user, client=p4_client, password=p4_password)
 
-        self._previous_head = None
+        self._previous_head: str | None = None
 
-    def _info(self, fmt, *args, **kwargs):
+    def _info(self, fmt: str, *args: Any, **kwargs: Any) -> None:
         """Logs an info"""
         logging.getLogger(pergit.LOGGER_NAME).info(fmt, *args, **kwargs)
 
-    def _warn(self, fmt, *args, **kwargs):
-        """Logs an info"""
+    def _warn(self, fmt: str, *args: Any, **kwargs: Any) -> None:
+        """Logs a warning"""
         logging.getLogger(pergit.LOGGER_NAME).warning(fmt, *args, **kwargs)
 
-    def _error(self, fmt, *args, **kwargs):
+    def _error(self, fmt: str, *args: Any, **kwargs: Any) -> NoReturn:
         """Logs an error"""
         raise PergitError(fmt.format(*args, **kwargs))
 
-    def _load_argument(self, key, value, default_value, allow_none=False):
+    def _load_argument(
+        self,
+        key: str,
+        value: str | None,
+        default_value: str | None,
+        allow_none: bool = False,
+    ) -> str | None:
         git = self._git
         branch_key = self._branch.replace("/", ".")
         config_key = f"pergit.{branch_key}.{key}"
         if value is None:
-            value = git(["config", config_key])
-            if value:
-                assert value.out()
-                return value.out()
+            if config_cmd := git(["config", config_key]):
+                assert config_cmd.out()
+                return config_cmd.out()
             if default_value is None and not allow_none:
                 self._error(_MSG_ARGUMENT_NOT_SET, key)
             value = default_value
@@ -131,7 +146,7 @@ class Pergit:
             git(["config", "--local", config_key, value]).check()
         return value
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         p4_root = self._work_tree + "/..."
 
         # Reverting and cleaning files in order to not commit trash to git
@@ -158,10 +173,10 @@ class Pergit:
 
     def sychronize(
         self,
-        changelist,
-        tag_prefix=None,
-        auto_submit=False,
-    ):
+        changelist: str | None,
+        tag_prefix: str | None = None,
+        auto_submit: bool = False,
+    ) -> None:
         """Runs the import command"""
         git = self._git
 
@@ -186,12 +201,12 @@ class Pergit:
         else:
             self._warn("Nothing to sync")
 
-    def _get_latest_sync_state(self, tag_prefix):
+    def _get_latest_sync_state(self, tag_prefix: str | None) -> tuple[str | None, str | None]:
         git = self._git
-        latest_tag = git(["describe", "--tags", "--match", f"{tag_prefix}@*"])
-        if not latest_tag:
+        latest_tag_cmd = git(["describe", "--tags", "--match", f"{tag_prefix}@*"])
+        if not latest_tag_cmd:
             return None, None
-        latest_tag = latest_tag.out()
+        latest_tag = latest_tag_cmd.out()
         match = _TAG_RE.match(latest_tag)
 
         if not match:
@@ -201,7 +216,12 @@ class Pergit:
         commit = git(["show", "--pretty=format:%H", "--no-patch", "-n1", f"{tag_prefix}@{changelist}"])
         return commit.out(), changelist
 
-    def _get_changes(self, changelist, sync_commit, sync_changelist):
+    def _get_changes(
+        self,
+        changelist: str | None,
+        sync_commit: str | None,
+        sync_changelist: str | None,
+    ) -> tuple[list[str], list[dict[str, str]]]:
         if sync_changelist is None:
             sync_changelist = "0"
         if changelist is None:
@@ -217,9 +237,7 @@ class Pergit:
                 )
             )
 
-        changelists = self._p4(["changes", "-l", f"{self._work_tree}/...@{changelist},#head"])
-
-        changelists = list(reversed(changelists))
+        changelists = list(reversed(self._p4(["changes", "-l", f"{self._work_tree}/...@{changelist},#head"])))
 
         # last_synced_cl is already sync, but when giving --changelist as
         # argument, one would expect that the change range is inclusive
@@ -233,29 +251,30 @@ class Pergit:
             commits = self._git(["log", "--pretty=format:%H"])
 
         if commits:
-            commits = list(commits)
-            commits.reverse()
-            return commits, changelists
+            return list(reversed(commits)), changelists
 
         # Happens when branch isn't already created
         return [], changelists
 
-    def _get_perforce_changes(self, changelist):
+    def _get_perforce_changes(self, changelist: str) -> Iterator[dict[str, str]]:
         changelists = self._p4(["changes", "-l", f"{self._work_tree}/...@{changelist},#head"])
 
         return reversed(changelists)
 
-    def _import_changes(self, tag_prefix, changes):
+    def _import_changes(self, tag_prefix: str | None, changes: Iterable[dict[str, Any]]) -> None:
         info = self._p4(["info"]).single_record()
-        date_re = r"\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} ([+|-]\d{4}).*$"
-        date_re = re.compile(date_re)
-        utc_offset = date_re.match(info["serverDate"]).group(1)
-        user_cache = {}
+        server_date = info["serverDate"]
+
+        date_re = re.compile(r"\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} ([+|-]\d{4}).*$")
+        utc_offset = date_match.group(1) if (date_match := date_re.match(server_date)) else None
+        assert isinstance(utc_offset, str)
+
+        user_cache: dict[str, str] = {}
         for change in changes:
             self._import_changelist(change, utc_offset, user_cache)
             self._tag_commit(tag_prefix, change)
 
-    def _import_changelist(self, change, utc_offset, user_cache):
+    def _import_changelist(self, change: dict[str, Any], utc_offset: str, user_cache: dict[str, str]) -> None:
         p4 = self._p4
         git = self._git
         self._info(_("Syncing then committing changelist %s : %s"), change["change"], change["desc"])
@@ -270,10 +289,12 @@ class Pergit:
         with git.with_env(GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date):
             git(["commit", "--allow-empty", "--author", author, "-m", description]).check()
 
-    def _get_author(self, change, user_cache):
+    def _get_author(self, change: dict[str, Any], user_cache: dict[str, str]) -> str:
         user = change["user"]
         if user in user_cache:
             return user_cache[user]
+
+        # FIXME(tdesveaux): populate user cache?
 
         user = self._p4(["users", user])
 
@@ -286,7 +307,7 @@ class Pergit:
 
         return author
 
-    def _tag_commit(self, tag_prefix, change, description=None):
+    def _tag_commit(self, tag_prefix: str | None, change: dict[str, Any], description: str | None = None) -> None:
         git = pergit.vcs.Git()
         tag = "{}@{}".format(tag_prefix, change["change"])
         tag_command = ["tag", "-f", tag]
@@ -295,7 +316,7 @@ class Pergit:
             tag_command.extend(["-m", description])
 
         if self.simulate:
-            self._info("SIMULATE :: " + tag_command)
+            self._info("SIMULATE :: %s", tag_command)
         if not self.simulate:
             if git(["tag", "-l", tag]).out():
                 self._warn(_("Tag %s already existed, it will be replaced."), tag)
@@ -304,7 +325,14 @@ class Pergit:
             for remote in git(["remote"]).out().splitlines(keepends=False):
                 git(["push", "--verbose", remote, tag]).out()
 
-    def _export_change(self, tag_prefix, commit, description, fileset, auto_submit):
+    def _export_change(
+        self,
+        tag_prefix: str | None,
+        commit: str,
+        description: str,
+        fileset: Iterable[str],
+        auto_submit: bool,
+    ) -> None:
         git = pergit.vcs.Git()
         p4 = self._p4
         root = self._work_tree
@@ -369,7 +397,7 @@ class Pergit:
         change = p4(["changes", "-m", "1", "-s", "submitted"]).single_record()
         self._tag_commit(tag_prefix, change, description)
 
-    def _strip_description_comments(self, description):
+    def _strip_description_comments(self, description: str) -> str:
         if self._strip_comments:
             stripped = [ln for ln in description.splitlines() if not (len(ln)) == 0]
             if len(stripped) > 1:  # Protect against empty descriptions if we have only # message
@@ -378,7 +406,12 @@ class Pergit:
         else:
             return description
 
-    def _get_git_fileset(self, commits, sync_commit, git_dir: str | None = None):
+    def _get_git_fileset(
+        self,
+        commits: Sequence[str],
+        sync_commit: str | None,
+        git_dir: str | None = None,
+    ) -> list[str]:
         assert len(commits) > 0
 
         workdir = Path(git_dir) if git_dir is not None else Path()
@@ -392,7 +425,7 @@ class Pergit:
         current_commit = commits[-1]
         prev_commit = commits[0]
 
-        fileset = list(
+        fileset: list[str] = list(  # type: ignore[call-overload]
             self._git(
                 [
                     *git_workdir,
@@ -418,8 +451,16 @@ class Pergit:
             config_submodule_args = ["config", "--file", ".gitmodules"]
 
             # list all path entries in .gitmodules
-            submodule_entries = list(
-                self._git([*git_workdir, *config_submodule_args, "--name-only", "--get-regexp", "submodule.*.path"])
+            submodule_entries: list[str] = list(  # type: ignore[call-overload]
+                self._git(
+                    [
+                        *git_workdir,
+                        *config_submodule_args,
+                        "--name-only",
+                        "--get-regexp",
+                        "submodule.*.path",
+                    ]
+                )
             )
 
             submodules_path = [
@@ -447,9 +488,9 @@ class Pergit:
                     # submodule was added at this commit
                     submodule_entry_at_prev = submodule_entry_at_current
 
-                submodule_prev_commit = ls_tree_output_regex.match(submodule_entry_at_prev)["rev"]
+                submodule_prev_commit = ls_tree_output_regex.match(submodule_entry_at_prev)["rev"]  # type: ignore[index]
 
-                submodule_current_commit = ls_tree_output_regex.match(submodule_entry_at_current)["rev"]
+                submodule_current_commit = ls_tree_output_regex.match(submodule_entry_at_current)["rev"]  # type: ignore[index]
 
                 submodule_git_dir = submodule_path
                 if git_dir is not None:
@@ -465,7 +506,13 @@ class Pergit:
 
         return fileset
 
-    def _export_changes(self, tag_prefix, commits, sync_commit, auto_submit):
+    def _export_changes(
+        self,
+        tag_prefix: str | None,
+        commits: Sequence[str],
+        sync_commit: str | None,
+        auto_submit: bool,
+    ) -> None:
         p4 = self._p4
         git = self._git
         root = self._work_tree
@@ -475,10 +522,13 @@ class Pergit:
         assert any(commits)
         if self._squash_commits:
             desc_command = ["show", "-s", "--pretty=format:%s <%an@%h>%n%b"]
-            description = [git([*desc_command, it]).out() for it in commits]
-            description.reverse()
-            description = "\n".join(description)
-            description = self._strip_description_comments(description)
+            description = self._strip_description_comments(
+                "\n".join(
+                    reversed(
+                        [git([*desc_command, it]).out() for it in commits],
+                    )
+                )
+            )
             if (
                 len(description) > 3900
             ):  # limit desc size because it breaks cmd on windows when exceding a certain amount of chars
@@ -494,7 +544,9 @@ class Pergit:
                     tag_prefix, commit, description, self._get_git_fileset([commit], sync_commit), auto_submit
                 )
 
-    def __exit__(self, ex_type, ex_value, ex_traceback):
+    def __exit__(
+        self, ex_type: type[BaseException] | None, ex_value: BaseException | None, ex_traceback: TracebackType | None
+    ) -> None:
         git = self._git
         if self._previous_head is not None:
             git(["symbolic-ref", "HEAD", f"refs/heads/{self._previous_head}"])

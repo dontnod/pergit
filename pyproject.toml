@@ -29,6 +29,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ruff==0.11.8",
+    "mypy==1.15.0",
 ]
 
 [project.scripts]
@@ -61,6 +62,7 @@ extend-select = [
     "PTH",
     "I",
     "RUF",
+    "TC",
 ]
 
 [tool.ruff.lint.isort]
@@ -69,3 +71,21 @@ force-single-line = true
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+packages = [
+    "pergit",
+]
+pretty = true
+
+namespace_packages = true
+warn_unused_configs = true
+follow_untyped_imports = true
+
+strict = true
+
+# Defined as:
+# additional checks that are technically correct but may be impractical in real code.
+#
+# it seems indeed impractical...
+extra_checks = false

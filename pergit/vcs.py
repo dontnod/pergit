@@ -26,6 +26,10 @@ import os
 import re
 import subprocess
 import tempfile
+from collections.abc import Iterator
+from collections.abc import Mapping
+from typing import Generic
+from typing import TypeVar
 
 from P4 import P4 as P4Python
 
@@ -37,12 +41,12 @@ P4_FIELD_RE = re.compile(r"^\.\.\. (?P<key>\w+) (?P<value>.*)$")
 class VCSCommand:
     """Object representing a git or perforce commmand"""
 
-    def __init__(self, command: list[str], env):
+    def __init__(self, command: list[str], env: Mapping[str, str]) -> None:
         logger = logging.getLogger(pergit.LOGGER_NAME)
         logger.debug("Running %s", subprocess.list2cmdline(command))
         self._result = subprocess.run(command, check=False, capture_output=True, env=env)
 
-        def _decode(bytes_: bytes) -> str:
+        def _decode(bytes_: bytes | None) -> str:
             if bytes_ is None:
                 return ""
 
@@ -65,39 +69,42 @@ class VCSCommand:
         VCSCommand._debug_output(self._stdout, "--")
         VCSCommand._debug_output(self._stderr, "!!")
 
-    def check(self):
+    def check(self) -> None:
         """Raises CalledProcessError if the command failed"""
         self._result.check_returncode()
 
-    def err(self):
+    def err(self) -> str:
         """Returns stdeer for this command"""
         return self._stderr
 
-    def out(self):
+    def out(self) -> str:
         """Returns stdout for command, raise CalledProcessError if the command
         failed"""
         self.check()
         return self._stdout.strip()
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return self._result.returncode == 0
 
     @staticmethod
-    def _debug_output(output, prefix):
+    def _debug_output(output: str, prefix: str) -> None:
         logger = logging.getLogger(pergit.LOGGER_NAME)
         if output:
             for line in output.strip().split("\n"):
                 logger.debug(" %s %s", prefix, line)
 
 
-class _VCS:
-    def __init__(self, command_class: type[VCSCommand], command_prefix: list[str]):
+VCSCommandType = TypeVar("VCSCommandType", bound=VCSCommand)
+
+
+class _VCS(Generic[VCSCommandType]):
+    def __init__(self, command_class: type[VCSCommandType], command_prefix: list[str]) -> None:
         self._command_class = command_class
         self._command_prefix = command_prefix
-        self._env_stack = []
+        self._env_stack: list[dict[str, str]] = []
 
     @contextlib.contextmanager
-    def with_env(self, **kwargs):
+    def with_env(self, **kwargs: str) -> Iterator[None]:
         """Calls to the VCS in the scope of this context managed method
         will have given variables added to environment"""
         self._env_stack.append(dict(**kwargs))
@@ -106,7 +113,7 @@ class _VCS:
         assert len(self._env_stack) == count
         self._env_stack.pop()
 
-    def __call__(self, command: list[str]):
+    def __call__(self, command: list[str]) -> VCSCommandType:
         env = os.environ.copy()
         for env_it in self._env_stack:
             env.update(env_it)
@@ -118,31 +125,29 @@ class _VCS:
 class P4Command(VCSCommand):
     """Object representing a p4 command, containing records returned by p4"""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._records = None
+    _records: list[dict[str, str]] | None = None
 
-    def single_record(self):
+    def single_record(self) -> dict[str, str]:
         """Checks there is a single record returned by Perforce and returns
         it"""
         self._eval_output()
-        assert len(self._records) == 1
+        assert self._records is not None and len(self._records) == 1
         return self._records[0]
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> dict[str, str]:
         self._eval_output()
         assert self._records is not None
         return self._records[index]
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return super().__bool__() and len(self) != 0
 
-    def __len__(self):
+    def __len__(self) -> int:
         self._eval_output()
         assert self._records is not None
         return len(self._records)
 
-    def _eval_output(self):
+    def _eval_output(self) -> None:
         if self._records is not None:
             return
 
@@ -154,7 +159,7 @@ class P4Command(VCSCommand):
 
         current_record = {}
         current_key = None
-        current_value = None
+        current_value: str = ""
         for line in self.out().split("\n"):
             # Empty line means we have multiple objects returned, change
             # the returned dict in a list
@@ -188,11 +193,17 @@ class P4Command(VCSCommand):
             self._records.append(current_record)
 
 
-class P4(_VCS):
+class P4(_VCS[P4Command]):
     """Wrapper for P4 calls"""
 
-    def __init__(self, port=None, user=None, client=None, password=None):
-        self._p4python = P4Python()
+    def __init__(
+        self,
+        port: str | None = None,
+        user: str | None = None,
+        client: str | None = None,
+        password: str | None = None,
+    ) -> None:
+        self._p4python = P4Python()  # type: ignore[no-untyped-call]
         command_prefix = ["p4", "-z", "tag"]
         if client is not None:
             command_prefix += ["-c", client]
@@ -200,24 +211,24 @@ class P4(_VCS):
         if password is not None:
             command_prefix += ["-P", password]
         if port is not None:
-            command_prefix += ["-p", port]
+            command_prefix += ["-p", str(port)]
             self._p4python.port = port
         if user is not None:
             command_prefix += ["-u", user]
             self._p4python.user = user
 
         logging.debug("Using P4Python: %s", repr(self._p4python))
-        self._p4python.connect()
+        self._p4python.connect()  # type: ignore[no-untyped-call]
         super().__init__(P4Command, command_prefix)
 
-    def submit(self, desc):
+    def submit(self, desc: str) -> None:
         change = self._p4python.fetch_change()
         change._description = desc
         logging.debug("%s", change)
-        self._p4python.run_submit(change)
+        self._p4python.run_submit(change)  # type: ignore[no-untyped-call]
 
     @contextlib.contextmanager
-    def ignore(self, *patterns):
+    def ignore(self, *patterns: str) -> Iterator[None]:
         """Ignore specified patterns for every calls in a with scope
         for this P4 instance
         """
@@ -235,32 +246,35 @@ class P4(_VCS):
 class GitCommand(VCSCommand):
     """Object representing a git command, containing lines returned by it"""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._lines = None
+    _lines: list[str] | None = None
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> str:
         self._eval_output()
         assert self._lines is not None
         return self._lines[index]
 
-    def __len__(self):
+    def __len__(self) -> int:
         self._eval_output()
         assert self._lines is not None
         return len(self._lines)
 
-    def _eval_output(self):
+    def _eval_output(self) -> None:
         if self._lines is not None:
             return
         self.check()
-        self._lines = [it.strip() for it in self.out().split("\n") if it.strip()]
+        self._lines = [stripped_it for it in self.out().split("\n") if (stripped_it := it.strip())]
 
 
-class Git(_VCS):
+class Git(_VCS[GitCommand]):
     """Wrapper representing a given git repository cloned in a given
     directory"""
 
-    def __init__(self, config=None, git_dir=None, work_tree=None):
+    def __init__(
+        self,
+        config: Mapping[str, str] | None = None,
+        git_dir: str | None = None,
+        work_tree: None = None,
+    ) -> None:
         command_prefix = ["git"]
 
         if git_dir is not None:
